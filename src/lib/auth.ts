@@ -142,6 +142,50 @@ export async function signup(
 }
 
 /**
+ * Time-boxed access windows (trial accounts).
+ * A user row may carry a [access_starts_at, access_expires_at] window
+ * (timestamptz, either nullable). NULL means "no window" — every normal
+ * account (demo + real signups) behaves exactly as before.
+ */
+const ET_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+function formatET(d: Date): string {
+  return `${ET_FORMAT.format(d)} ET`;
+}
+/**
+ * Throws with a distinct message when the account's access window has not
+ * started or has already ended. Only called AFTER the password has verified,
+ * so the unauthenticated path still cannot tell whether an email exists.
+ */
+export function assertAccessWindowOpen(user: {
+  access_starts_at?: string | null;
+  access_expires_at?: string | null;
+}): void {
+  const now = Date.now();
+  if (user.access_starts_at) {
+    const start = new Date(user.access_starts_at);
+    if (now < start.getTime()) {
+      throw new Error(`This trial isn't active yet — it opens ${formatET(start)}`);
+    }
+  }
+  if (user.access_expires_at) {
+    const end = new Date(user.access_expires_at);
+    if (now >= end.getTime()) {
+      throw new Error("This trial has ended");
+    }
+  }
+}
+/** The session must never outlive the trial window. */
+function capExpiryAtWindow(expiresAt: string, accessExpiresAt: string | null): string {
+  if (!accessExpiresAt) return expiresAt;
+  const end = new Date(accessExpiresAt).getTime();
+  if (new Date(expiresAt).getTime() > end) return new Date(end).toISOString();
+  return expiresAt;
+}
+/**
  * Log in an existing user. Verifies password and returns a session.
  */
 export async function login(
@@ -153,7 +197,8 @@ export async function login(
   const db = getDb();
 
   const users = await db`
-    SELECT id, email, name, subscription_tier, password_hash, created_at
+    SELECT id, email, name, subscription_tier, password_hash, created_at,
+           access_starts_at, access_expires_at
     FROM users WHERE email = ${email}
   `;
 
@@ -165,6 +210,10 @@ export async function login(
 
   const valid = await verifyPassword(password, row.password_hash);
   if (!valid) throw new Error("Invalid email or password");
+
+  // Time-boxed trial gate — only reached with a correct password, so the
+  // distinct window messages never reveal whether an email exists.
+  assertAccessWindowOpen(row);
 
   const session = await createSession(row.id);
 
@@ -187,7 +236,16 @@ export async function createSession(userId: string): Promise<Session> {
   const db = getDb();
   const id = randomUUID();
   const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
+  // Cap the 7-day session at the user's trial window end (if any), so a
+  // session issued inside a 4-day trial dies with the trial.
+  const windowRows = await db`
+    SELECT access_expires_at FROM users WHERE id = ${userId} LIMIT 1
+  `;
+  const accessExpiresAt = windowRows.length > 0 ? (windowRows[0].access_expires_at ?? null) : null;
+  const expiresAt = capExpiryAtWindow(
+    new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
+    accessExpiresAt ? new Date(accessExpiresAt).toISOString() : null,
+  );
 
   await db`
     INSERT INTO sessions (id, user_id, token, expires_at, created_at)
@@ -209,7 +267,8 @@ export async function verifySession(
 
   const rows = await db`
     SELECT s.id as sid, s.user_id, s.token, s.expires_at,
-           u.id, u.email, u.name, u.subscription_tier, u.created_at
+           u.id, u.email, u.name, u.subscription_tier, u.created_at,
+           u.access_expires_at
     FROM sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.token = ${token}
@@ -219,9 +278,12 @@ export async function verifySession(
 
   const row = rows[0];
   const expiresAt = new Date(row.expires_at);
+  // Time-boxed trial: a session must not outlive the user's access window.
+  const windowClosed = row.access_expires_at != null && Date.now() >= new Date(row.access_expires_at).getTime();
 
-  if (expiresAt < new Date()) {
-    // Session expired, clean it up
+  if (expiresAt < new Date() || windowClosed) {
+    // Session expired, or the user's trial window has closed — clean it up
+    // so a session issued inside the window cannot outlive the trial.
     await db`DELETE FROM sessions WHERE id = ${row.sid}`;
     return null;
   }

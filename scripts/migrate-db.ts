@@ -90,7 +90,12 @@ async function migrate() {
   `;
   console.log("✓ design_templates table");
 
-    console.log("Migration complete!");
+    // Time-boxed trial windows (task b8d0d115). Both nullable — NULL means
+  // "no window", so every pre-existing account behaves exactly as before.
+  await db`ALTER TABLE users ADD COLUMN IF NOT EXISTS access_starts_at timestamptz`;
+  await db`ALTER TABLE users ADD COLUMN IF NOT EXISTS access_expires_at timestamptz`;
+  console.log("✓ users.access_starts_at / access_expires_at (nullable trial window)");
+  console.log("Migration complete!");
 }
 
 migrate()
