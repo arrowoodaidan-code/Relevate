@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { ComplianceChecklistPanel } from "~/components/ComplianceChecklistPanel";
+import { formatForDimensions } from "~/lib/advertising-rules";
 import {
   DESIGN_BACKGROUNDS,
   DESIGN_FONT_CATALOG,
@@ -288,6 +290,12 @@ export function DesignCanvasEditor({ doc, onChange, className }: Props) {
           <button type="button" onClick={() => bringForward("back")} className="rounded px-1.5 py-0.5 hover:bg-emerald-900/40">⏬ Back</button>
         </div>
       )}
+
+      {/* Advertising-compliance checklist (task 420406e2) — sits directly above
+          the canvas so the agent can read it while designing. Content is driven
+          entirely by ~/lib/advertising-rules.ts (verbatim research data); it
+          never renders a pass/fail or "compliant" verdict. */}
+      <ComplianceChecklistPanel format={formatForDimensions(doc.width, doc.height)} />
 
       {/* Canvas */}
       <div
