@@ -336,6 +336,13 @@ export function validateRenderRequest(value: unknown): { ok: true; data: RenderR
   for (const key of ["title", "agentName", "brandStyle"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 500)) return { ok: false, error: `${key} must be a short string` };
   // R5 structured listing data (additive, optional): short display strings only.
   for (const key of ["price", "beds", "baths", "sqft", "agentPhone"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 80)) return { ok: false, error: `${key} must be a short string` };
+  // Disclosure-footer fields (task 834b0e71, additive + optional): short
+  // user-supplied strings, a 2-letter jurisdiction, and strict booleans. All
+  // absent → identical behaviour to before (EHO footer defaults ON in the
+  // template layer; empty disclosure fields render nothing).
+  for (const key of ["brokerageName", "agentLicense", "brokerName", "brokerLicense"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 80)) return { ok: false, error: `${key} must be a short string` };
+  if (raw.jurisdiction != null && (typeof raw.jurisdiction !== "string" || !/^[A-Za-z]{2}$/.test(raw.jurisdiction))) return { ok: false, error: "jurisdiction must be a 2-letter state code" };
+  for (const key of ["narMember", "ehoFooter"] as const) if (raw[key] != null && typeof raw[key] !== "boolean") return { ok: false, error: `${key} must be a boolean` };
   if (raw.imageDataUrl != null && !validImage(raw.imageDataUrl)) return { ok: false, error: "imageDataUrl must be an image base64 data URL under 4 MB" };
   if (raw.templateImage != null && !validImage(raw.templateImage)) return { ok: false, error: "templateImage must be an image base64 data URL under 4 MB" };
   if (raw.templateImage != null) {

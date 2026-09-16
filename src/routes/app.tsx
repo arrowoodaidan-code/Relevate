@@ -18,6 +18,24 @@ import { DesignCanvasEditor } from "~/components/DesignCanvasEditor";
 import { createBlankDesign, DESIGN_PRESETS, type DesignDoc, type DesignPresetId } from "~/lib/design";
 import { NativeInlineEditor, type NativeEditorValue } from "~/components/NativeInlineEditor";
 
+// US states for the disclosure jurisdiction selector (task 834b0e71). The full
+// list is offered; state-specific DISCLOSURE behaviour exists only for the
+// VERIFIED jurisdictions (FL, CA) — every other selection simply supplies the
+// fields without claiming any requirement (other-states-candidate, unverified).
+const US_STATES: [string, string][] = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
+  ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"], ["FL", "Florida"],
+  ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"], ["IL", "Illinois"], ["IN", "Indiana"],
+  ["IA", "Iowa"], ["KS", "Kansas"], ["KY", "Kentucky"], ["LA", "Louisiana"], ["ME", "Maine"],
+  ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"], ["MS", "Mississippi"],
+  ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"], ["NH", "New Hampshire"],
+  ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"], ["NC", "North Carolina"], ["ND", "North Dakota"],
+  ["OH", "Ohio"], ["OK", "Oklahoma"], ["OR", "Oregon"], ["PA", "Pennsylvania"], ["RI", "Rhode Island"],
+  ["SC", "South Carolina"], ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"],
+  ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"],
+  ["WY", "Wyoming"],
+];
+
 // --- Saved properties history (owner-requested app updates) ---
 interface SavedProperty {
   id: string;
@@ -340,6 +358,18 @@ function AppDashboard() {
   const [agentPhone, setAgentPhone] = useState("");
   const [agentEmail, setAgentEmail] = useState("");
   const [agentBrokerage, setAgentBrokerage] = useState("");
+  // Disclosure profile (task 834b0e71) — licence fields, jurisdiction, NAR
+  // declaration, EHO toggle. Persisted to localStorage so they auto-attach to
+  // every future render in this browser. All user-supplied, never fabricated.
+  const [agentLicense, setAgentLicense] = useState("");
+  const [brokerName, setBrokerName] = useState("");
+  const [brokerLicense, setBrokerLicense] = useState("");
+  const [jurisdiction, setJurisdiction] = useState("");
+  const [narMember, setNarMember] = useState(false);
+  const [ehoFooter, setEhoFooter] = useState(true);
+  // Compliance notices returned by /api/render (FL missing-brokerage warning,
+  // CA licence confirmation) — surfaced next to the designed preview.
+  const [renderWarnings, setRenderWarnings] = useState<{ level: "warning" | "info"; message: string }[]>([]);
 
   // Apply a listing-photo extraction to the form (R6). Fills every field the
   // vision model read; fields it could not read are blanked (never fabricated)
@@ -734,6 +764,16 @@ function AppDashboard() {
           }
           return {};
         })()),
+        // Disclosure + EHO footer (task 834b0e71) — user-supplied only; blanks
+        // omitted so nothing is fabricated server-side. EHO is DEFAULT-ON in
+        // the renderer, so only an explicit off is sent.
+        ...(agentBrokerage.trim() ? { brokerageName: agentBrokerage.trim() } : {}),
+        ...(jurisdiction ? { jurisdiction } : {}),
+        ...(agentLicense.trim() ? { agentLicense: agentLicense.trim() } : {}),
+        ...(brokerName.trim() ? { brokerName: brokerName.trim() } : {}),
+        ...(brokerLicense.trim() ? { brokerLicense: brokerLicense.trim() } : {}),
+        ...(narMember ? { narMember: true } : {}),
+        ...(ehoFooter ? {} : { ehoFooter: false }),
       };
       // Native /api/render can be slow on a cold serverless function (the host's
       // upstream cutoff is ~30s). We bound the spinner with a client-side timeout,
@@ -779,6 +819,7 @@ function AppDashboard() {
           const url = URL.createObjectURL(blob);
           renderedBlobUrlRef.current = url;
           setRenderedImage(url);
+          setRenderWarnings([]);
           renderedBodyRef.current = fieldOverrides?.body ?? generatedContent;
           trackEvent("content_rendered", { content_type: contentType, render_type: renderType });
           done(() => {});
@@ -789,6 +830,7 @@ function AppDashboard() {
         const imageDataUrl = data?.imageDataUrl || data?.data?.imageDataUrl;
         if (res.ok && imageDataUrl) {
           setRenderedImage(imageDataUrl);
+          setRenderWarnings(Array.isArray(data?.warnings) ? data.warnings : []);
           renderedBodyRef.current = fieldOverrides?.body ?? generatedContent;
           trackEvent("content_rendered", { content_type: contentType, render_type: renderType });
           done(() => {});
@@ -840,7 +882,7 @@ function AppDashboard() {
       // never stick forever, even when an abort wouldn't propagate.
       setIsRendering(false);
     }
-  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, generatedImage, templateDescription, suggestionStyle, brandedTemplate]);
+  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, narMember, ehoFooter, generatedImage, templateDescription, suggestionStyle, brandedTemplate]);
 
 
   // In-place editing of the native rendered flyer/social (NativeInlineEditor).
@@ -1443,6 +1485,79 @@ function AppDashboard() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-emerald-200/80">State / Jurisdiction</label>
+                    <select
+                      value={jurisdiction}
+                      onChange={(e) => setJurisdiction(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 focus-ring-forest outline-none"
+                    >
+                      <option value="">Not set</option>
+                      {US_STATES.map(([code, name]) => (
+                        <option key={code} value={code}>
+                          {name} ({code})
+                        </option>
+                      ))}
+                    </select>
+                    {jurisdiction === "FL" && (
+                      <p className="mt-1 text-xs text-amber-300/70">
+                        Florida: the licensed brokerage firm name is required in advertising (Fla. Admin. Code 61J2-10.025) — make sure Brokerage / Company above is filled in.
+                      </p>
+                    )}
+                    {jurisdiction === "CA" && (
+                      <p className="mt-1 text-xs text-sky-300/70">
+                        California: agent name, DRE licence number and responsible broker identity are rendered when supplied (B&amp;P Code §10140.6). Confirm applicability with your responsible broker.
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-200/80">Agent Licence #</label>
+                      <input
+                        type="text"
+                        value={agentLicense}
+                        onChange={(e) => setAgentLicense(e.target.value)}
+                        placeholder="e.g. SL312345678"
+                        maxLength={40}
+                        className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-200/80">Responsible Broker</label>
+                      <input
+                        type="text"
+                        value={brokerName}
+                        onChange={(e) => setBrokerName(e.target.value)}
+                        placeholder="e.g. Marta Reyes"
+                        maxLength={120}
+                        className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-200/80">Broker Licence #</label>
+                      <input
+                        type="text"
+                        value={brokerLicense}
+                        onChange={(e) => setBrokerLicense(e.target.value)}
+                        placeholder="e.g. BR98765432"
+                        maxLength={40}
+                        className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-end gap-2 pb-1">
+                      <label className="flex items-center gap-2 text-xs text-emerald-200/70">
+                        <input type="checkbox" checked={narMember} onChange={(e) => setNarMember(e.target.checked)} className="accent-emerald-500" />
+                        I am an NAR member — render REALTOR® after my name
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-emerald-200/70">
+                        <input type="checkbox" checked={ehoFooter} onChange={(e) => setEhoFooter(e.target.checked)} className="accent-emerald-500" />
+                        Equal Housing Opportunity footer (recommended)
+                      </label>
+                    </div>
+                  </div>
+                  <p className="text-xs text-emerald-300/40">
+                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office). Saved in this browser and reused on future renders.
+                  </p>
+                  <div>
                     <label className="block text-sm font-medium text-emerald-200/80">
                       Logo (optional)
                     </label>
@@ -1746,6 +1861,22 @@ function AppDashboard() {
                               onDismiss={() => setRenderError(null)}
                               className="mt-3"
                             />
+                            {renderWarnings.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {renderWarnings.map((w, i) => (
+                                  <div
+                                    key={i}
+                                    className={
+                                      w.level === "warning"
+                                        ? "rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+                                        : "rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-200"
+                                    }
+                                  >
+                                    {w.message}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <div className="mt-3">
                               <NativeInlineEditor
                                 imageUrl={renderedImage}
