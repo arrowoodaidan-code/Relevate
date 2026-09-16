@@ -582,14 +582,14 @@ function disclosureSegments(input: RenderTemplateInput): string[] {
   if (agentName || agentLic) {
     let s = agentName ?? "";
     if (agentName && input.narMember) s += `, ${REALTOR_MARK}`;
-    if (agentLic) s += `${s ? " \u00B7 " : ""}${licLabel}${agentLic}`;
+    if (agentLic) s += `${s ? " \u00B7 " : ""}${licLabel}${agentLic.replace(/^(DRE #|License #)\s*/i, "")}`;
     if (s) segs.push(s);
   }
   const brokerName = input.brokerName?.trim();
   const brokerLic = input.brokerLicense?.trim();
   if (brokerName || brokerLic) {
     let s = brokerName ? `Broker ${brokerName}` : "Broker";
-    if (brokerLic) s += `${brokerName ? " \u00B7 " : " "}${licLabel}${brokerLic}`;
+    if (brokerLic) s += `${brokerName ? " \u00B7 " : " "}${licLabel}${brokerLic.replace(/^(DRE #|License #)\s*/i, "")}`;
     segs.push(s);
   }
   return segs;
@@ -626,10 +626,15 @@ function DisclosureFooter(opts: {
 }) {
   const { input, x, w, top, availableH, legendColor, detailColor, markSize, fontSize } = opts;
   const showEho = input.ehoFooter !== false;
+  // EHO house MARK is provisional: the official asset's provenance could not be
+  // verified (HUD page 404 at research access), so it renders only when
+  // explicitly requested (ehoMark). The legend TEXT is the verified part
+  // (exact 24 CFR 110.25 wording) and is what ships by default.
+  const showEhoMark = showEho && input.ehoMark === true;
   const segments = disclosureSegments(input);
   if (!showEho && segments.length === 0) return null;
   const detailText = segments.join("  \u00B7  ");
-  const textW = w - (showEho ? markSize + 14 : 0);
+  const textW = w - (showEhoMark ? markSize + 14 : 0);
   const legendH = showEho ? fontSize * 1.3 : 0;
   const detailFit = detailText
     ? fitBlockLines(detailText, {
@@ -647,7 +652,7 @@ function DisclosureFooter(opts: {
     key: "dsc",
     style: { position: "absolute", top, left: x, width: w, display: "flex", flexDirection: "row", alignItems: "center", gap: 14 },
   }, [
-    showEho ? h("img", { key: "eho", src: ehoMarkDataUrl(legendColor), style: { width: markSize, height: markSize, flexShrink: 0 } }) : null,
+    showEhoMark ? h("img", { key: "eho", src: ehoMarkDataUrl(legendColor), style: { width: markSize, height: markSize, flexShrink: 0 } }) : null,
     h("div", { key: "tx", style: { display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 } }, [
       showEho ? h("div", { key: "lg", style: { color: legendColor, fontFamily: SANS, fontSize, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.3 } }, EHO_LEGEND) : null,
       detailFit ? h("div", { key: "dt", style: { color: detailColor, fontFamily: SANS, fontSize: detailFit.size, lineHeight: 1.3, whiteSpace: "pre-wrap" } }, detailFit.lines.join("\n")) : null,
