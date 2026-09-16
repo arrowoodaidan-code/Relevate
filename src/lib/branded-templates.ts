@@ -30,6 +30,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzePhoto, zonePalette } from "./photo-adaptive";
+import { Resvg } from "@resvg/resvg-js";
+import { EHO_LEGEND, REALTOR_MARK } from "./advertising-rules";
 
 // ---------------------------------------------------------------------------
 // Design tokens (DESIGN-TOKENS.md — bundled Relevate brand)
@@ -533,6 +535,132 @@ function AgentBand({ agent, phone, x, top, w, nameFont }: { agent: string; phone
 }
 
 // ---------------------------------------------------------------------------
+// Disclosure + EHO footer (task 834b0e71) — baked into the branded native
+// templates so a compliant asset is the default. Rules live verbatim in
+// ./advertising-rules.ts (researched + lead-reviewed 2026-09-16). Behaviour:
+//  - EHO legend (exact 24 CFR 110.25 wording) + mark: DEFAULT ON — industry
+//    convention, explicitly NOT a legal requirement (the federal mandate is
+//    the 11x14 office poster). User can toggle it off.
+//  - Brokerage / agent licence / responsible broker lines render ONLY when the
+//    user supplied them — an empty field renders nothing (no placeholders, no
+//    bracket text, no tofu).
+//  - REALTOR® renders only when the agent declared NAR membership, uppercase
+//    with the registered symbol, appended to the supplied agent name — never
+//    auto-inserted, logos untouched.
+//  - State-aware wording: CA licence numbers are labelled "DRE #"; every other
+//    state "License #". No requirement is claimed for unverified states.
+//  - FL adjacency rule (61J2-10.025(3)(a)): the strip renders immediately below
+//    the agent band (the contact block), keeping the brokerage name adjacent to
+//    the point of contact information on web/social renders.
+// ---------------------------------------------------------------------------
+
+/** Exact EHO mark (square + house + equals) hand-authored as SVG per the
+ * standard symbol, rasterized with Resvg in the requested ink color and
+ * cached. HUD's official logo asset 404'd at research access (noted in
+ * advertising-rules.json), so this rendition follows the documented symbol. */
+const ehoMarkCache = new Map<string, string>();
+function ehoMarkDataUrl(ink: string): string {
+  const hit = ehoMarkCache.get(ink);
+  if (hit) return hit;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="8" y="8" width="112" height="112" fill="none" stroke="${ink}" stroke-width="8"/><path d="M 26 60 L 64 26 L 102 60" fill="none" stroke="${ink}" stroke-width="8"/><path d="M 38 52 L 38 100 L 90 100 L 90 52" fill="none" stroke="${ink}" stroke-width="8"/><rect x="50" y="70" width="28" height="8" fill="${ink}"/><rect x="50" y="84" width="28" height="8" fill="${ink}"/></svg>`;
+  const png = new Resvg(svg, { fitTo: { mode: "width", value: 128 } }).render().asPng();
+  const url = `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
+  ehoMarkCache.set(ink, url);
+  return url;
+}
+
+/** User-supplied disclosure segments, in strip order. Never fabricates: an
+ * empty field contributes nothing. CA licence numbers use the DRE label. */
+function disclosureSegments(input: RenderTemplateInput): string[] {
+  const segs: string[] = [];
+  const state = (input.jurisdiction ?? "").trim().toUpperCase();
+  const licLabel = state === "CA" ? "DRE #" : "License #";
+  const brokerage = input.brokerageName?.trim();
+  if (brokerage) segs.push(brokerage);
+  const agentName = input.agentName?.trim();
+  const agentLic = input.agentLicense?.trim();
+  if (agentName || agentLic) {
+    let s = agentName ?? "";
+    if (agentName && input.narMember) s += `, ${REALTOR_MARK}`;
+    if (agentLic) s += `${s ? " \u00B7 " : ""}${licLabel}${agentLic.replace(/^(DRE #|License #)\s*/i, "")}`;
+    if (s) segs.push(s);
+  }
+  const brokerName = input.brokerName?.trim();
+  const brokerLic = input.brokerLicense?.trim();
+  if (brokerName || brokerLic) {
+    let s = brokerName ? `Broker ${brokerName}` : "Broker";
+    if (brokerLic) s += `${brokerName ? " \u00B7 " : " "}${licLabel}${brokerLic.replace(/^(DRE #|License #)\s*/i, "")}`;
+    segs.push(s);
+  }
+  return segs;
+}
+
+/** Replicates AgentBand's internal name fit so the disclosure strip can sit
+ * DIRECTLY below the band without overlapping it (band height varies with
+ * name length: 1 line ≈ 55px, 2 lines ≈ 92px). */
+function agentBandHeightPx(input: RenderTemplateInput, w: number): number {
+  const agent = input.agentName?.trim() || "Your local real estate expert";
+  const nameFont = fb(input, DISPLAY, 700);
+  if (!nameFont) return 48 * 1.15;
+  const nameW = Math.max(140, w - (input.agentPhone ? 300 : 150));
+  const fit = fitBlockLines(agent, { width: nameW, height: 2 * 40 * 1.15, fontBuf: nameFont, size: 48, ls: 0, lineHeight: 1.15, minSize: 18, maxSize: 48 });
+  return Math.max(1, fit.lines.length) * fit.size * 1.15;
+}
+
+/** The disclosure strip: EHO mark + legend (default ON) and the user-supplied
+ * licence/brokerage line (only when supplied). Fit-boxed into availableH with
+ * the same fitBlockLines machinery as every other slot — never clips into the
+ * canvas edge. Returns null when there is truly nothing to render (EHO off AND
+ * no supplied fields), so the layout is byte-identical to pre-task renders in
+ * that configuration apart from this element's absence. */
+function DisclosureFooter(opts: {
+  input: RenderTemplateInput;
+  x: number;
+  w: number;
+  top: number;
+  availableH: number;
+  legendColor: string;
+  detailColor: string;
+  markSize: number;
+  fontSize: number;
+}) {
+  const { input, x, w, top, availableH, legendColor, detailColor, markSize, fontSize } = opts;
+  const showEho = input.ehoFooter !== false;
+  // EHO house MARK is provisional: the official asset's provenance could not be
+  // verified (HUD page 404 at research access), so it renders only when
+  // explicitly requested (ehoMark). The legend TEXT is the verified part
+  // (exact 24 CFR 110.25 wording) and is what ships by default.
+  const showEhoMark = showEho && input.ehoMark === true;
+  const segments = disclosureSegments(input);
+  if (!showEho && segments.length === 0) return null;
+  const detailText = segments.join("  \u00B7  ");
+  const textW = w - (showEhoMark ? markSize + 14 : 0);
+  const legendH = showEho ? fontSize * 1.3 : 0;
+  const detailFit = detailText
+    ? fitBlockLines(detailText, {
+        width: textW,
+        height: Math.max(fontSize * 1.3, availableH - legendH),
+        fontBuf: fb(input, SANS, 400),
+        size: fontSize,
+        ls: 0,
+        lineHeight: 1.3,
+        minSize: Math.max(11, fontSize - 4),
+        maxSize: fontSize,
+      })
+    : null;
+  return h("div", {
+    key: "dsc",
+    style: { position: "absolute", top, left: x, width: w, display: "flex", flexDirection: "row", alignItems: "center", gap: 14 },
+  }, [
+    showEhoMark ? h("img", { key: "eho", src: ehoMarkDataUrl(legendColor), style: { width: markSize, height: markSize, flexShrink: 0 } }) : null,
+    h("div", { key: "tx", style: { display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 } }, [
+      showEho ? h("div", { key: "lg", style: { color: legendColor, fontFamily: SANS, fontSize, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.3 } }, EHO_LEGEND) : null,
+      detailFit ? h("div", { key: "dt", style: { color: detailColor, fontFamily: SANS, fontSize: detailFit.size, lineHeight: 1.3, whiteSpace: "pre-wrap" } }, detailFit.lines.join("\n")) : null,
+    ]),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
 // Template builders
 // ---------------------------------------------------------------------------
 function flyerHero(input: RenderTemplateInput) {
@@ -584,6 +712,11 @@ function flyerHero(input: RenderTemplateInput) {
   const BODY_TOP = 1126, BODY_H = 284;
   const bodyFit = fitBlockLines(input.body, { width: CW - 60, height: BODY_H - 48, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
   const FOOTER = 1462;
+  // Disclosure + EHO strip (task 834b0e71): directly below the agent band (FL
+  // adjacency), sized off the replicated band height so 2-line names clear it.
+  const bandH = agentBandHeightPx(input, CW);
+  const stripTop = Math.min(FOOTER + 16 + bandH + 10, HGT - 44);
+  const stripH = HGT - stripTop - 8;
   return h("div", {
     style: { width: W, height: HGT, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", background: "linear-gradient(180deg, #fdfbf5 0%, #f3edE1 40%, #efe7d8 100%)", color: C.ink, fontFamily: SANS },
   }, [
@@ -606,6 +739,7 @@ function flyerHero(input: RenderTemplateInput) {
     ),
     h("div", { key: "dv", style: { position: "absolute", top: FOOTER - 10, left: X, width: CW, height: 2, backgroundColor: accent } }),
     AgentBand({ agent, phone: input.agentPhone, x: X, top: FOOTER + 16, w: CW, nameFont: fb(input, DISPLAY, 700) }),
+    DisclosureFooter({ input, x: X, w: CW, top: stripTop, availableH: stripH, legendColor: C.inkSoft, detailColor: C.inkSoft, markSize: 30, fontSize: 15 }),
   ]);
 }
 
@@ -641,6 +775,12 @@ function flyerClassic(input: RenderTemplateInput) {
   const bodyText = rest || input.body;
   const bodyFit = fitBlockLines(bodyText, { width: CW - 60, height: BODY_H - 48, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
   const FOOTER = 1462;
+  // Disclosure + EHO strip (task 834b0e71): sits directly below the agent band
+  // (the contact block — FL 61J2-10.025(3)(a) adjacency) in the unused footer
+  // margin. Band height is replicated so a 2-line name never overlaps it.
+  const bandH = agentBandHeightPx(input, CW);
+  const stripTop = Math.min(FOOTER + 16 + bandH + 10, HGT - 44);
+  const stripH = HGT - stripTop - 8;
   return h("div", {
     style: { width: W, height: HGT, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", background: "linear-gradient(180deg, #fdfbf5 0%, #f3edE1 40%, #efe7d8 100%)", color: C.ink, fontFamily: SANS },
   }, [
@@ -668,6 +808,7 @@ function flyerClassic(input: RenderTemplateInput) {
     ),
     h("div", { key: "dv", style: { position: "absolute", top: FOOTER - 10, left: X, width: CW, height: 2, backgroundColor: accent } }),
     AgentBand({ agent, phone: input.agentPhone, x: X, top: FOOTER + 16, w: CW, nameFont: fb(input, DISPLAY, 700) }),
+    DisclosureFooter({ input, x: X, w: CW, top: stripTop, availableH: stripH, legendColor: C.inkSoft, detailColor: C.inkSoft, markSize: 30, fontSize: 15 }),
   ]);
 }
 
@@ -695,6 +836,7 @@ function socialPhoto(input: RenderTemplateInput) {
         body: { fx: 0, fy: 710 / S, fw: 1, fh: 179 / S },    // body 710..889
         tags: { fx: 0, fy: 896 / S, fw: 1, fh: 60 / S },
         pill: { fx: 0.32, fy: 36 / S, fw: 0.36, fh: 74 / S },
+        footer: { fx: 0, fy: 996 / S, fw: 1, fh: 80 / S },   // disclosure strip (task 834b0e71)
       })
     : null;
   const upperPal = zonePalette(photoAnalysis, "upper", { type: "large", darkText: C.gold });
@@ -703,6 +845,9 @@ function socialPhoto(input: RenderTemplateInput) {
   const chipPal = zonePalette(photoAnalysis, "chips", { type: "large", darkText: C.mint, lightText: "#173024" });
   const tagPal = zonePalette(photoAnalysis, "tags", { type: "large", darkText: C.eyebrow, lightText: "#173024" });
   const pillPal = zonePalette(photoAnalysis, "pill", { type: "large", darkText: C.gold, lightText: "#173024" });
+  // Disclosure strip ink (task 834b0e71): measured on its own bottom zone with
+  // the 4.5:1 body floor so the small print stays legible on ANY photo.
+  const footerPal = zonePalette(photoAnalysis, "footer", { type: "body", darkText: "#eaf6ee", lightText: "#173024" });
   const flipped = upperPal.flipped;
   // Full-image overlay: light cream wash over a bright photo, brand dark scrim
   // over a dark photo. Body-zone wash reversed in light mode (its own layer).
@@ -739,6 +884,12 @@ function socialPhoto(input: RenderTemplateInput) {
   // instead of ellipsizing at the HIGHLIGHTS label.
   const socialBody = socialBodyForRender(stripTrailingHashtagBlock(input.body));
   const bodyFit = fitBlockLines(socialBody, { width: CW, height: 179, fontBuf: fb(input, SANS, 400), size: 22, ls: 0, lineHeight: 1.4, minSize: 21, maxSize: 26 });
+  // Disclosure + EHO strip (task 834b0e71): directly below the agent band (FL
+  // adjacency), height-aware of band wrap; ink from the photo-adaptive footer
+  // zone so it survives bright, dark and mid-tone photos.
+  const sBandH = agentBandHeightPx(input, CW);
+  const stripTop = Math.min(agentTop + sBandH + 8, S - 36);
+  const stripH = S - stripTop - 6;
   return h("div", {
     style: { width: S, height: S, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: C.deep, color: C.mint, fontFamily: SANS },
   }, [
@@ -763,6 +914,7 @@ function socialPhoto(input: RenderTemplateInput) {
     tagFit ? h("div", { key: "tg", style: { position: "absolute", top: TAG_TOP, left: X, width: CW, color: tagPal.textColor, fontFamily: SANS, fontSize: tagFit.size, lineHeight: 1.3, whiteSpace: "pre-wrap" } }, tagFit.lines.join("\n")) : null,
     h("div", { key: "dv", style: { position: "absolute", top: dividerTop, left: X, width: CW, height: 2, backgroundColor: dividerAccent } }),
     AgentBand({ agent, phone: input.agentPhone, x: X, top: agentTop, w: CW, nameFont: fb(input, DISPLAY, 700) }),
+    DisclosureFooter({ input, x: X, w: CW, top: stripTop, availableH: stripH, legendColor: footerPal.textColor, detailColor: footerPal.textColor, markSize: 24, fontSize: 15 }),
   ]);
 }
 
@@ -799,6 +951,11 @@ function socialClassic(input: RenderTemplateInput) {
   const agentNameFit = fb(input, DISPLAY, 700)
     ? fitBlockLines(agent, { width: agentW, height: 2 * 30 * 1.15, fontBuf: fb(input, DISPLAY, 700)!, size: 28, ls: 0, lineHeight: 1.15, minSize: 16, maxSize: 28 })
     : null;
+  // Disclosure + EHO strip (task 834b0e71): directly below the centered agent
+  // band (FL adjacency); light ink for the dark forest background.
+  const sBandH = agentNameFit ? Math.max(1, agentNameFit.lines.length) * agentNameFit.size * 1.15 : 28 * 1.15;
+  const stripTop = Math.min(agentTop + sBandH + 8, S - 36);
+  const stripH = S - stripTop - 6;
   return h("div", {
     style: { width: S, height: S, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: C.deep, color: C.mint, fontFamily: SANS },
   }, [
@@ -817,6 +974,7 @@ function socialClassic(input: RenderTemplateInput) {
       h("div", { key: "n", style: { color: C.mint, fontFamily: DISPLAY, fontSize: agentNameFit ? agentNameFit.size : 28, fontWeight: 700, lineHeight: 1.15, marginRight: input.agentPhone ? 16 : 0 } }, agentNameFit ? agentNameFit.lines.join("\n") : agent),
       input.agentPhone ? h("div", { key: "p", style: { color: C.gold, fontFamily: SANS, fontSize: 24, fontWeight: 700 } }, input.agentPhone) : null,
     ]),
+    DisclosureFooter({ input, x: X, w: CW, top: stripTop, availableH: stripH, legendColor: C.soft2, detailColor: C.muted, markSize: 24, fontSize: 15 }),
   ]);
 }
 

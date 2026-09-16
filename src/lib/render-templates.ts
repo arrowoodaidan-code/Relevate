@@ -111,6 +111,26 @@ export interface RenderTemplateInput {
   baths?: string;
   sqft?: string;
   agentPhone?: string;
+  /** Advertising-disclosure footer fields (task 834b0e71) — ALL user-supplied,
+   * never fabricated; an absent/empty field renders NOTHING (no placeholder
+   * text, no brackets). Rendered by the branded native templates ONLY
+   * (template-replica mode is untouched). Rule semantics + warning helper live
+   * in ./advertising-rules.ts (verbatim source-of-truth copy). */
+  jurisdiction?: string;
+  brokerageName?: string;
+  agentLicense?: string;
+  brokerName?: string;
+  brokerLicense?: string;
+  /** Agent declared NAR membership — the only gate that ever renders REALTOR®. */
+  narMember?: boolean;
+  /** Equal Housing Opportunity footer toggle — DEFAULT ON
+   * (eho-statement-footer-recommended: industry convention, NOT a legal
+   * requirement; the federal mandate is the 11x14 office poster). */
+  ehoFooter?: boolean;
+  /** EHO house MARK (logo image) — OFF by default: the asset's provenance is
+   * unverified (provisional artwork). The legend TEXT (ehoFooter) is the
+   * verified, default-on part (exact 24 CFR 110.25 wording). */
+  ehoMark?: boolean;
   imageDataUrl?: string;
   brandStyle?: string;
   /** Server-resolved, non-client design layers. */

@@ -21,6 +21,7 @@ import { POST as stripeWebhookPost } from "./src/routes/api/webhooks/stripe";
 import { isValidPriceKey, PRICE_KEYS } from "./src/lib/price-keys";
 import Stripe from "stripe";
 import { renderMarketingPng, validateRenderRequest, eraseAllTemplateText } from "./src/lib/render";
+import { disclosureWarnings } from "./src/lib/advertising-rules";
 import { resolveRenderSuggestion } from "./src/lib/render-suggestions";
 import { captureDemoLead, validateDemoLead } from "./src/lib/leads";
 import { sendTransactionalEmail } from "./src/lib/email";
@@ -256,7 +257,10 @@ export default async function vercelHandler(
         const parsed = validateRenderRequest(await readJson(req));
         if (!parsed.ok) { sendJson(res, 400, { success: false, error: parsed.error }); return; }
         const imageDataUrl = await renderMarketingPng(parsed.data);
-        sendJson(res, 200, { success: true, imageDataUrl });
+        // Disclosure warnings (task 834b0e71): FL-missing-brokerage surfaces as
+        // a warning; CA licence renders come back as a confirmation. The image
+        // itself always renders — the UI decides how loudly to surface.
+        sendJson(res, 200, { success: true, imageDataUrl, warnings: disclosureWarnings(parsed.data) });
       } catch (error) {
         console.error("[team-site] /api/render error:", error);
         sendJson(res, 500, { success: false, error: "Failed to render PNG" });

@@ -642,3 +642,78 @@ export const COMPLIANCE_PANEL_DISCLAIMERS = {
   noVerdict:
     "Relevate does not check your design and never certifies compliance. Ticks are your own notes, and unticked items are not a failure.",
 } as const;
+
+// TEMP stand-ins (fullstack, 2026-09-17): branded-templates.ts (DE disclosure-block WIP)
+// imports these but they were never defined in any committed version — the build and the
+// dev server were failing on them. Minimal honest defaults; DE owns final wording.
+export const EHO_LEGEND = "Equal Housing Opportunity";
+export const REALTOR_MARK = "REALTOR®";
+
+// ---------------------------------------------------------------------------
+// Render-path disclosure exports (task 834b0e71, Design Engineer). The native
+// flyer/social templates and /api/render import THESE names — the checklist
+// data above stays the single source of rule TEXT; the block below adds the
+// small render-side vocabulary on top of it. EHO_LEGEND and REALTOR_MARK are
+// NOT redeclared here: the stand-in definitions above (fullstack; values match
+// exact 24 CFR 110.25 wording and NAR usage) are canonical - DE owns wording.
+// ---------------------------------------------------------------------------
+
+/** Jurisdictions with VERIFIED advertising rules. Every other state is
+ * unverified (other-states-candidate): fields are offered, no requirement is
+ * claimed, nothing is enforced. */
+export const VERIFIED_JURISDICTIONS = ["FL", "CA"] as const;
+
+/** User-supplied disclosure profile - every field optional, never fabricated;
+ * an empty field renders NOTHING (no placeholder, no bracket text). */
+export interface DisclosureInput {
+  jurisdiction?: string;
+  brokerageName?: string;
+  agentName?: string;
+  agentLicense?: string;
+  brokerName?: string;
+  brokerLicense?: string;
+  narMember?: boolean;
+  /** EHO footer toggle - DEFAULT ON (eho-statement-footer-recommended). */
+  ehoFooter?: boolean;
+}
+
+const cleanStr = (v?: string) => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * State-aware disclosure warnings for a render request - exactly as researched,
+ * never exceeding the verified rules:
+ *  - FL + missing brokerage name -> WARNING (61J2-10.025 must surface, not pass).
+ *  - CA + any disclosure field present -> INFO confirmation (B&P 10140.6(b)(1)
+ *    applicability is broker-confirmable - a confirmation, never a guarantee).
+ *  - Any other state -> no requirement claimed, no warning.
+ */
+export function disclosureWarnings(
+  input: DisclosureInput,
+): { level: "warning" | "info"; message: string }[] {
+  const out: { level: "warning" | "info"; message: string }[] = [];
+  const state = cleanStr(input.jurisdiction).toUpperCase();
+  if (state === "FL" && !cleanStr(input.brokerageName)) {
+    out.push({
+      level: "warning",
+      message:
+        "Florida advertising must include the licensed name of the brokerage firm (Fla. Admin. Code R. 61J2-10.025). Add your brokerage name under Agent & Logo so this asset renders compliant - it was left off this render.",
+    });
+  }
+  if (state === "CA") {
+    const has = [cleanStr(input.agentName), cleanStr(input.agentLicense), cleanStr(input.brokerName), cleanStr(input.brokerLicense)].some(Boolean);
+    if (has) {
+      const missing: string[] = [];
+      if (!cleanStr(input.agentName)) missing.push("agent name");
+      if (!cleanStr(input.agentLicense)) missing.push("agent DRE #");
+      if (!cleanStr(input.brokerName)) missing.push("responsible broker name");
+      if (!cleanStr(input.brokerLicense)) missing.push("responsible broker DRE #");
+      out.push({
+        level: "info",
+        message: missing.length
+          ? "CA licence details render as supplied (B&P Code \u00A710140.6(b)(1) covers first-point-of-contact solicitation material - confirm applicability with your responsible broker). Not yet filled: " + missing.join(", ") + "."
+          : "CA licence details render as supplied (B&P Code \u00A710140.6(b)(1) covers first-point-of-contact solicitation material - confirm applicability with your responsible broker).",
+      });
+    }
+  }
+  return out;
+}
