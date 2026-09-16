@@ -1,0 +1,268 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Navigation, PricingCard, RelevateLockup } from "~/components";
+import { canonical, seoMeta } from "~/lib/seo";
+import { trackEvent } from "~/lib/analytics";
+import { startCheckout } from "~/lib/product-checkout";
+
+export const Route = createFileRoute("/pricing")({
+  component: PricingPage,
+  head: () => ({
+    meta: seoMeta({
+      title: "Pricing — Relevate | AI Marketing Assistant for Real Estate Agents",
+      description:
+        "Simple, transparent pricing for Relevate, the AI marketing assistant for real estate agents. Starter $39/mo, Pro $79/mo, Team $199/mo. Upgrade anytime — save 50% for 3 months with code LAUNCH50.",
+      path: "/pricing",
+    }),
+    links: [canonical("/pricing")],
+  }),
+});
+
+/* --- Pricing plans (owner final: Starter $39 / Pro $79 / Team $199 monthly; annual = 7% off) ---
+ * Each plan carries both a MONTHLY price and a YEARLY (pay-upfront full annual) price.
+ * Annual = 93% of 12 × monthly, exact cents in Stripe; UI shows whole dollars + per-month equivalent:
+ *   Starter $435/yr ($36/mo) · Pro $882/yr ($73/mo) · Team $2,221/yr ($185/mo)
+ */
+type BillingCycle = "monthly" | "yearly";
+
+const pricingPlans = [
+  {
+    name: "Starter",
+    description: "For individual agents getting started",
+    ctaText: "Subscribe",
+    monthly: { price: "$39", period: "/mo", priceSub: undefined, priceLookupKey: "starter_monthly" as const },
+    yearly: {
+      price: "$435",
+      period: "/yr",
+      priceSub: "($36.27/mo, paid upfront) · save 7%",
+      priceLookupKey: "starter_annual" as const,
+    },
+    features: [
+      { text: "Up to 5 listings/month", included: true },
+      { text: "Basic templates", included: true },
+      { text: "Property descriptions", included: true },
+      { text: "Open house flyers", included: true },
+      { text: "Social media posts", included: true },
+      { text: "Email support", included: true },
+    ],
+  },
+  {
+    name: "Pro",
+    description: "For serious agents with growing businesses",
+    highlighted: true,
+    ctaText: "Subscribe",
+    monthly: { price: "$79", period: "/mo", priceSub: undefined, priceLookupKey: "pro" as const },
+    yearly: {
+      price: "$882",
+      period: "/yr",
+      priceSub: "($73.47/mo, paid upfront) · save 7%",
+      priceLookupKey: "pro_annual" as const,
+    },
+    features: [
+      { text: "Up to 20 listings/month", included: true },
+      { text: "All asset types", included: true },
+      { text: "Email campaigns", included: true },
+      { text: "Listing summaries", included: true },
+      { text: "Priority support", included: true },
+      { text: "Custom branding options", included: true },
+    ],
+  },
+  {
+    name: "Team",
+    description: "For brokerages and teams",
+    ctaText: "Subscribe",
+    monthly: { price: "$199", period: "/mo", priceSub: undefined, priceLookupKey: "team" as const },
+    yearly: {
+      price: "$2,221",
+      period: "/yr",
+      priceSub: "($185.07/mo, paid upfront) · save 7%",
+      priceLookupKey: "team_annual" as const,
+    },
+    features: [
+      { text: "Unlimited listings", included: true },
+      { text: "Multi-agent seats", included: true },
+      { text: "Branded templates", included: true },
+      { text: "Advanced analytics", included: true },
+      { text: "Dedicated account manager", included: true },
+      { text: "API access", included: true },
+    ],
+  },
+];
+
+function PricingPage() {
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  useEffect(() => {
+    trackEvent("pricing_viewed");
+  }, []);
+
+  async function handleSubscribe(priceLookupKey: string) {
+    setCheckoutLoading(priceLookupKey);
+    try {
+      await startCheckout(priceLookupKey, {
+        onAnalytics: () =>
+          trackEvent("checkout_started", { plan: priceLookupKey, billing: billingCycle }),
+      });
+    } catch (err: any) {
+      alert(err.message || "Failed to start checkout. Please try again.");
+      setCheckoutLoading(null);
+    }
+  }
+
+  return (
+    <div className="min-h-dvh bg-[#0a1a0a] font-['Inter',system-ui,sans-serif]">
+      <Navigation />
+      {/* ===== Page header ===== */}
+      <section className="relative overflow-hidden px-6 pb-16 pt-24 sm:pt-32">
+        <div className="absolute inset-0 wood-texture-dark opacity-10" />
+        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-emerald-800/25 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-amber-900/20 blur-3xl" />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <div className="animate-on-scroll mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-700/30 bg-emerald-950/60 px-4 py-1 text-xs font-medium text-emerald-200/80 backdrop-blur-sm">
+            Pricing
+          </div>
+          <h1 className="animate-on-scroll text-4xl font-bold tracking-tight text-emerald-100 sm:text-5xl">
+            Simple, transparent pricing
+          </h1>
+          <p className="animate-on-scroll mt-4 text-lg text-emerald-200/60">
+            Choose the plan that fits your business. Upgrade anytime.
+          </p>
+          <p className="animate-on-scroll mt-3 text-sm text-amber-300/70">
+            🚀 Launch offer: save 50% for 3 months with code{" "}
+            <code className="rounded bg-amber-900/40 px-1.5 py-0.5 font-mono text-xs text-amber-100">
+              LAUNCH50
+            </code>
+          </p>
+        </div>
+      </section>
+
+      {/* ===== Pricing section ===== */}
+      <section id="pricing" className="forest-section relative px-6 py-16 sm:py-20">
+        <div className="absolute inset-0 wood-texture-dark opacity-15" />
+        <div className="relative mx-auto max-w-7xl">
+          {/* Billing-cycle toggle */}
+          <div className="mb-10 flex justify-center">
+            <div className="inline-flex items-center rounded-full border border-emerald-700/40 bg-emerald-950/60 p-1 backdrop-blur-sm">
+              <button
+                type="button"
+                onClick={() => setBillingCycle("monthly")}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition-all duration-300 ${
+                  billingCycle === "monthly"
+                    ? "bg-emerald-700 text-emerald-50 shadow"
+                    : "text-emerald-300/70 hover:text-emerald-100"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle("yearly")}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition-all duration-300 ${
+                  billingCycle === "yearly"
+                    ? "bg-emerald-700 text-emerald-50 shadow"
+                    : "text-emerald-300/70 hover:text-emerald-100"
+                }`}
+              >
+                Yearly
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-8 lg:grid-cols-3">
+            {pricingPlans.map((plan, i) => {
+              const pricing =
+                billingCycle === "yearly" ? plan.yearly : plan.monthly;
+              return (
+                <div key={plan.name} className={`animate-on-scroll stagger-${i + 1}`}>
+                  <PricingCard
+                    name={plan.name}
+                    description={plan.description}
+                    price={pricing.price}
+                    period={pricing.period}
+                    priceSub={pricing.priceSub}
+                    highlighted={plan.highlighted}
+                    features={plan.features}
+                    onCtaClick={() => handleSubscribe(pricing.priceLookupKey)}
+                    ctaText={
+                      checkoutLoading === pricing.priceLookupKey
+                        ? "Redirecting..."
+                        : plan.ctaText
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-10 text-center text-sm text-emerald-300/40">
+            All plans start with a free trial — no credit card required.
+            {billingCycle === "yearly"
+              ? " Yearly plans are billed once, up front, for the full year."
+              : " Prices are per month, billed monthly."}
+          </p>
+        </div>
+      </section>
+
+      {/* ===== CTA band ===== */}
+      <section className="relative overflow-hidden px-6 py-20" style={{
+        background: 'linear-gradient(135deg, #0a1a0a 0%, #1a2e1a 50%, #0d1f0d 100%)',
+      }}>
+        <div className="absolute inset-0 wood-texture-dark opacity-30" />
+        <div className="relative mx-auto max-w-2xl text-center">
+          <h2 className="animate-on-scroll text-3xl font-bold tracking-tight text-emerald-100 sm:text-4xl">
+            Ready to save hours on every listing?
+          </h2>
+          <p className="animate-on-scroll mt-4 text-lg text-emerald-200/70">
+            Join agents who use Relevate to create professional marketing materials in minutes.
+          </p>
+          <div className="animate-on-scroll mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <button
+              onClick={() => handleSubscribe("starter_monthly")}
+              disabled={checkoutLoading === "starter_monthly"}
+              className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto disabled:opacity-60"
+            >
+              {checkoutLoading === "starter_monthly" ? "Redirecting..." : "Start Your Free Trial"}
+            </button>
+            <a
+              href="/demo"
+              className="w-full rounded-lg wood-button-dark px-8 py-3.5 text-base font-semibold text-emerald-200/80 shadow-sm sm:w-auto"
+            >
+              Schedule a Demo
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== Footer ===== */}
+      <footer className="relative bg-[#050f05] px-6 py-12">
+        <div className="absolute inset-0 wood-texture-dark opacity-10" />
+        <div className="relative mx-auto max-w-7xl">
+          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
+            <div className="flex items-center gap-2">
+              <RelevateLockup className="h-8 w-auto" />
+            </div>
+            <nav className="flex flex-wrap justify-center gap-6 text-sm text-emerald-300/50 sm:gap-8">
+              <a href="/#features" className="transition hover:text-emerald-100">
+                Features
+              </a>
+              <a href="/#how-it-works" className="transition hover:text-emerald-100">
+                How It Works
+              </a>
+              <a href="/pricing" className="transition hover:text-emerald-100">
+                Pricing
+              </a>
+              <a href="/blog" className="transition hover:text-emerald-100">
+                Blog
+              </a>
+              <a href="/about" className="transition hover:text-emerald-100">
+                About
+              </a>
+            </nav>
+            <p className="text-sm text-emerald-300/30">
+              &copy; {new Date().getFullYear()} Relevate. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

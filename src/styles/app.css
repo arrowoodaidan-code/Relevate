@@ -1,0 +1,529 @@
+@import "tailwindcss";
+
+@theme {
+  /* Custom animations */
+  --animate-fade-in: fade-in 0.6s ease-out forwards;
+  --animate-fade-in-up: fade-in-up 0.6s ease-out forwards;
+  --animate-fade-in-down: fade-in-down 0.6s ease-out forwards;
+  --animate-fade-in-left: fade-in-left 0.6s ease-out forwards;
+  --animate-fade-in-right: fade-in-right 0.6s ease-out forwards;
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-float-slow: float 5s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-grow-in: grow-in 0.4s ease-out forwards;
+  --animate-shimmer: shimmer 2s ease-in-out infinite;
+  --animate-wood-grain: wood-grain 30s linear infinite;
+  --animate-leaf-sway: leaf-sway 4s ease-in-out infinite;
+  --animate-nav-underline: nav-underline 0.3s ease-out forwards;
+  --animate-bg-drift: bg-drift 8s ease-in-out infinite alternate;
+  --animate-wood-shimmer: wood-shimmer 3s ease-in-out infinite;
+  --animate-icon-bounce: icon-bounce 0.4s ease-out forwards;
+  --animate-glow-ring: glow-ring 1.5s ease-in-out infinite alternate;
+  --animate-focus-grow: focus-grow 0.3s ease-out forwards;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in-left {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes fade-in-right {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes float-slow {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  @keyframes grow-in {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes wood-grain {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 100% 100%; }
+  }
+  @keyframes leaf-sway {
+    0%, 100% { transform: rotate(-2deg); }
+    50% { transform: rotate(2deg); }
+  }
+  @keyframes nav-underline {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  @keyframes bg-drift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+  @keyframes wood-shimmer {
+    0% { background-position: -200% 0%; }
+    50% { background-position: 200% 0%; }
+    100% { background-position: -200% 0%; }
+  }
+  @keyframes icon-bounce {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.2) rotate(-5deg); }
+    60% { transform: scale(0.95) rotate(3deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  @keyframes glow-ring {
+    0% { box-shadow: 0 0 5px rgba(74, 140, 63, 0.3), 0 0 10px rgba(74, 140, 63, 0.1); }
+    100% { box-shadow: 0 0 10px rgba(74, 140, 63, 0.5), 0 0 20px rgba(74, 140, 63, 0.2); }
+  }
+  @keyframes focus-grow {
+    from { box-shadow: 0 0 0 0 rgba(59, 110, 47, 0.3); }
+    to { box-shadow: 0 0 0 4px rgba(59, 110, 47, 0.3); }
+  }
+}
+
+@layer base {
+  html,
+  body {
+    @apply bg-[#0a1a0a] text-emerald-100/90 antialiased;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  /* Wood grain texture overlay - light */
+  .wood-texture {
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(92, 61, 46, 0.06) 2px,
+      rgba(92, 61, 46, 0.06) 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(92, 61, 46, 0.04) 3px,
+      rgba(92, 61, 46, 0.04) 6px
+    );
+  }
+
+  /* Wood texture darker */
+  .wood-texture-dark {
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(255, 255, 255, 0.03) 2px,
+      rgba(255, 255, 255, 0.03) 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(255, 255, 255, 0.02) 3px,
+      rgba(255, 255, 255, 0.02) 6px
+    );
+  }
+
+  /* Wooden button — realistic wood grain effect */
+  .wood-button {
+    position: relative;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(139, 105, 20, 0.08) 1px,
+        rgba(139, 105, 20, 0.08) 2px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 3px,
+        rgba(92, 61, 46, 0.05) 3px,
+        rgba(92, 61, 46, 0.05) 6px
+      ),
+      linear-gradient(135deg, #5c3d2e 0%, #7a4e2e 30%, #8b6914 60%, #5c3d2e 100%);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(255,255,255,0.1), 0 2px 4px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    overflow: hidden;
+  }
+  .wood-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background-size: 200% 100%;
+    background-position: -200% 0;
+    transition: background-position 0.6s ease;
+    pointer-events: none;
+  }
+  .wood-button:hover {
+    transform: scale(0.97);
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .wood-button:hover::before {
+    background-position: 200% 0;
+  }
+  .wood-button:active {
+    transform: scale(0.95);
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.5);
+  }
+
+  /* Dark stained-wood button (secondary) */
+  .wood-button-dark {
+    position: relative;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(0,0,0,0.08) 1px,
+        rgba(0,0,0,0.08) 2px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 3px,
+        rgba(92, 61, 46, 0.08) 3px,
+        rgba(92, 61, 46, 0.08) 6px
+      ),
+      linear-gradient(135deg, #3d2a1e 0%, #5c3d2e 50%, #3d2a1e 100%);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    overflow: hidden;
+  }
+  .wood-button-dark::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    background-size: 200% 100%;
+    background-position: -200% 0;
+    transition: background-position 0.6s ease;
+    pointer-events: none;
+  }
+  .wood-button-dark:hover {
+    transform: scale(0.97);
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .wood-button-dark:hover::before {
+    background-position: 200% 0;
+  }
+
+  /* Card tilt on hover */
+  .card-tilt {
+    perspective: 800px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .card-tilt:hover {
+    transform: perspective(800px) rotateX(2deg) rotateY(-2deg);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  }
+
+  /* Icon bounce on card hover */
+  .icon-bounce-hover {
+    transition: transform 0.3s ease;
+  }
+  .group:hover .icon-bounce-hover {
+    animation: icon-bounce 0.4s ease-out forwards;
+  }
+
+  /* Glow border on pricing card hover */
+  .glow-border-hover {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .glow-border-hover:hover {
+    border-color: rgba(74, 140, 63, 0.6);
+    box-shadow: 0 0 15px rgba(74, 140, 63, 0.2), 0 0 30px rgba(74, 140, 63, 0.1);
+  }
+
+  /* Animated focus ring for inputs */
+  .focus-ring-forest {
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .focus-ring-forest:focus {
+    border-color: #4a8c3f;
+    animation: focus-grow 0.3s ease-out forwards;
+  }
+
+  /* Badge shimmer */
+  .badge-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .badge-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    background-size: 200% 100%;
+    background-position: -200% 0;
+    animation: shimmer 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Nav link with leaf dot */
+  .nav-link-leaf {
+    @apply relative text-sm font-medium text-emerald-300/70 transition-colors hover:text-emerald-100;
+  }
+  .nav-link-leaf::after {
+    content: '';
+    @apply absolute -bottom-1 left-0 h-0.5 bg-emerald-500 rounded-full transition-all duration-300;
+    width: 0;
+  }
+  .nav-link-leaf:hover::after {
+    width: 100%;
+  }
+  .nav-link-leaf::before {
+    content: '◆';
+    @apply absolute -bottom-2 left-full text-[6px] text-emerald-400 opacity-0 transition-all duration-300;
+    transform: translateX(-4px);
+  }
+  .nav-link-leaf:hover::before {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Staggered animation delay classes */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+  .stagger-6 { animation-delay: 0.6s; }
+
+  /* Forest green gradient */
+  .forest-gradient {
+    background: linear-gradient(135deg, #0a1a0a 0%, #1a2e1a 50%, #0d1f0d 100%);
+  }
+
+  /* Dark forest section bg */
+  .forest-section {
+    @apply bg-[#0a1a0a]/95;
+  }
+
+  /* Forest section alt */
+  .forest-section-alt {
+    @apply bg-[#0d1f0d]/90;
+  }
+
+  /* Card lift (kept for compatibility) */
+  .card-lift {
+    @apply transition-all duration-300;
+  }
+
+  /* Glow effect for step numbers */
+  .step-glow {
+    @apply shadow-[0_0_15px_rgba(74,140,63,0.3)] transition-shadow duration-300;
+  }
+  .step-glow:hover {
+    @apply shadow-[0_0_25px_rgba(74,140,63,0.5)];
+  }
+}
+
+/* Scroll-triggered fade-in */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+.animate-on-scroll.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ======== Scenic Parallax Background Layers ======== */
+
+/* Parallax base container — full viewport, fixed, behind content */
+.parallax-scene {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+}
+
+/* Each parallax layer */
+.parallax-layer {
+  position: absolute;
+  inset: -20% -10% -20% -10%; /* extend beyond viewport for scroll movement */
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Layer depth: 0 = farthest (slowest), higher = closer (faster) */
+.parallax-layer-depth-0 { z-index: 0; }
+.parallax-layer-depth-1 { z-index: 1; }
+.parallax-layer-depth-2 { z-index: 2; }
+.parallax-layer-depth-3 { z-index: 3; }
+.parallax-layer-depth-4 { z-index: 4; }
+
+/* Fog/mist layer */
+.parallax-mist {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 80%, rgba(20, 50, 30, 0.15) 0%, transparent 60%),
+              radial-gradient(ellipse at 20% 60%, rgba(30, 60, 40, 0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 80% 70%, rgba(25, 55, 35, 0.08) 0%, transparent 50%);
+  animation: mist-drift 12s ease-in-out infinite alternate;
+}
+
+/* Fireflies */
+.firefly {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(144, 238, 144, 0.6);
+  box-shadow: 0 0 6px 2px rgba(144, 238, 144, 0.3), 0 0 12px 4px rgba(144, 238, 144, 0.1);
+  animation: firefly-float var(--duration, 6s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.firefly::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(144, 238, 144, 0.15) 0%, transparent 70%);
+}
+
+/* Falling leaf */
+.falling-leaf {
+  position: absolute;
+  font-size: 12px;
+  opacity: 0.25;
+  animation: leaf-fall var(--duration, 8s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes firefly-float {
+  0%, 100% {
+    transform: translate(0, 0) scale(0.8);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translate(15px, -20px) scale(1.2);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-10px, -35px) scale(0.9);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translate(20px, -15px) scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+@keyframes leaf-fall {
+  0% {
+    transform: translateY(-10vh) rotate(0deg) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.3;
+  }
+  90% {
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg) translateX(60px);
+    opacity: 0;
+  }
+}
+
+@keyframes mist-drift {
+  0% {
+    transform: translateX(-3%) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateX(0%) scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(3%) scale(0.95);
+    opacity: 0.5;
+  }
+}
+
+/* Scenic SVG tree silhouettes */
+.scenic-tree {
+  position: absolute;
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.scenic-tree-depth-0 { opacity: 0.04; }
+.scenic-tree-depth-1 { opacity: 0.07; }
+.scenic-tree-depth-2 { opacity: 0.12; }
+
+/* Rolling hills silhouettes */
+.scenic-hills {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 35vh;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+/* Celestial glow — subtle moon/sun that shifts on scroll */
+.celestial-glow {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, rgba(144, 180, 120, 0.08) 0%, rgba(144, 180, 120, 0.04) 30%, transparent 70%);
+  top: 8%;
+  right: 15%;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.5s ease;
+}
+.celestial-glow::before {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180, 210, 150, 0.03) 0%, transparent 60%);
+  animation: celestial-pulse 6s ease-in-out infinite alternate;
+}
+.celestial-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 45%, rgba(200, 230, 170, 0.15) 0%, transparent 50%);
+}
+
+@keyframes celestial-pulse {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  100% { transform: scale(1.05); opacity: 1; }
+}
+
+/* Prevent parallax layers from causing layout shifts */
+.parallax-scene svg {
+  pointer-events: none;
+  user-select: none;
+}

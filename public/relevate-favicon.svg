@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Relevate favicon">
+  <defs>
+    <linearGradient id="rel-leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="30%" stop-color="#34d399"/>
+      <stop offset="70%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#065f46"/>
+    </linearGradient>
+    <mask id="rel-house-mask">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M24 35 L32 26.5 L40 35 L40 48.5 L24 48.5 Z" fill="#000"/>
+      <rect x="28.8" y="40" width="6.4" height="8.5" rx="1" fill="#fff"/>
+    </mask>
+  </defs>
+
+  <!-- Dark forest tile with soft emerald glow border -->
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="#0d1f0d"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="#34d399" stroke-opacity="0.35" stroke-width="1"/>
+
+  <!-- Mark centered at ~44px -->
+  <g transform="translate(10,10)">
+    <path mask="url(#rel-house-mask)"
+          d="M32 3 C43 3 54.5 17 51.5 33 C49.2 45.5 41.5 54.5 32 54.5 C22.5 54.5 14.8 45.5 12.5 33 C9.5 17 21 3 32 3 Z"
+          fill="url(#rel-leaf)"/>
+    <path mask="url(#rel-house-mask)"
+          d="M32 8.5 C30.5 20 30.5 34 32 47"
+          fill="none" stroke="#d1fae5" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+    <path d="M32 54.5 L32 60.5" stroke="#8a5a3b" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

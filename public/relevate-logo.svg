@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" width="260" height="64" role="img" aria-label="Relevate — AI marketing for real estate agents">
+  <defs>
+    <linearGradient id="rel-leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="30%" stop-color="#34d399"/>
+      <stop offset="70%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#065f46"/>
+    </linearGradient>
+    <linearGradient id="rel-wood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#b08d57"/>
+      <stop offset="100%" stop-color="#8a5a3b"/>
+    </linearGradient>
+    <mask id="rel-house-mask">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M24 35 L32 26.5 L40 35 L40 48.5 L24 48.5 Z" fill="#000"/>
+      <rect x="28.8" y="40" width="6.4" height="8.5" rx="1" fill="#fff"/>
+    </mask>
+    <symbol id="rel-mark" viewBox="0 0 64 64">
+      <path mask="url(#rel-house-mask)"
+            d="M32 3 C43 3 54.5 17 51.5 33 C49.2 45.5 41.5 54.5 32 54.5 C22.5 54.5 14.8 45.5 12.5 33 C9.5 17 21 3 32 3 Z"
+            fill="url(#rel-leaf)"/>
+      <path mask="url(#rel-house-mask)"
+            d="M32 8.5 C30.5 20 30.5 34 32 47"
+            fill="none" stroke="#d1fae5" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <path d="M32 54.5 L32 60.5" stroke="#8a5a3b" stroke-width="2.6" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+
+  <use href="#rel-mark" x="0" y="4" width="52" height="52"/>
+
+  <text x="68" y="41" font-family="'Inter','Segoe UI',system-ui,sans-serif" font-size="32" font-weight="700" letter-spacing="0.5" fill="#d1fae5">Relevate</text>
+  <rect x="68" y="50" width="148" height="3" rx="1.5" fill="url(#rel-wood)"/>
+</svg>
