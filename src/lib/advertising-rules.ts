@@ -3,8 +3,17 @@
  * ================================================================================
  * Copied VERBATIM from the compliance researcher's findings file:
  *   /home/team/shared/compliance/advertising-rules.json
- *   (relevate-advertising-rules v1.0.0, generated 2026-09-16, lead-verified)
+ *   (relevate-advertising-rules v1.1.0, generated 2026-09-16, lead-verified)
  * Human-readable companion: /home/team/shared/compliance/REAL-ESTATE-ADVERTISING-RULES.md
+ *
+ * v1.1.0 (2026-09-16): Texas PROMOTED to verified — 22 TAC 535.155 replaces the
+ * former `tx-535-153-candidate` (535.153 is "Violating an Exclusive Agency", NOT
+ * the advertising rule; the old citation was wrong). Five verified TX rules now
+ * cover it: tx-535-155a-name-and-broker, tx-535-155a-half-size,
+ * tx-535-155e-social-profile, tx-535-155f-misleading-list and
+ * tx-535-155-no-license-number (an explicit negative finding: TX agent ads have NO
+ * licence-number requirement). `eho-logo-asset-provenance` was added as UNVERIFIED
+ * so the EHO-logo-file question is visible in the data, not only in the docs.
  *
  * WHY THIS FILE EXISTS
  *  - The custom-design-editor compliance checklist panel reads its content from
@@ -68,40 +77,57 @@ export interface AdvertisingRulesMeta {
 
 export const ADVERTISING_RULES_META: AdvertisingRulesMeta = {
   name: "relevate-advertising-rules",
-  version: "1.0.0",
+  version: "1.1.0",
   generated: "2026-09-16",
   researcher: "agent-compliance-researcher",
   disclaimer:
     "Research aid for product rule engine. NOT legal advice; not exhaustive or authoritative. Broker and state commission have final say. Rules marked confidence=unverified must NOT be enforced as hard requirements until verified.",
   access_note:
-    "All source_url entries accessed 2026-09-16. HTTP status recorded in source notes; unverified entries flagged.",
+    "All source_url entries accessed 2026-09-16. HTTP status recorded in source notes; unverified entries flagged. v1.1.0: TX promoted to verified (22 TAC 535.155, replacing the former 535.153 candidate); EHO logo asset provenance added as unverified.",
 };
 
 export const ADVERTISING_RULES: AdvertisingRule[] = [
   {
     id: "fha-3604c-no-discriminatory-ads",
     jurisdiction: "federal",
-    surface: ["property_description", "flyer_text", "social_caption", "email_campaign", "listing_summary", "image_prompt"],
+    surface: [
+      "property_description",
+      "flyer_text",
+      "social_caption",
+      "email_campaign",
+      "listing_summary",
+      "image_prompt",
+    ],
     type: "must_avoid",
     requirement:
       "No notice/statement/advertisement about the sale or rental of a dwelling may indicate any preference, limitation, or discrimination based on race, color, religion, sex, handicap, familial status, or national origin, or an intention to make such a preference/limitation/discrimination.",
-    why: "42 U.S.C. 3604(c) (Fair Housing Act); violation is a federal unlawful practice enforceable by HUD and DOJ.",
+    why:
+      "42 U.S.C. 3604(c) (Fair Housing Act); violation is a federal unlawful practice enforceable by HUD and DOJ.",
     satisfied_by:
       "Content guardrail scanning generated text and image prompts for protected-class references (words, phrases, photos, illustrations, symbols) and blocking/flagging; prompt system instruction listing the 7 protected classes.",
     severity: "hard",
     source_url: "https://www.law.cornell.edu/uscode/text/42/3604",
     accessed: "2026-09-16",
-    notes: "Verified verbatim text of (c) in-session. LII mirrors OLRC text; uscode.house.gov returned error at access.",
+    notes:
+      "Verified verbatim text of (c) in-session. LII mirrors OLRC text; uscode.house.gov returned error at access.",
     confidence: "verified",
   },
   {
     id: "cfr100-75-flyers-explicitly-covered",
     jurisdiction: "federal",
-    surface: ["flyer_text", "flyer_image", "social_caption", "social_image", "email_campaign", "image_prompt"],
+    surface: [
+      "flyer_text",
+      "flyer_image",
+      "social_caption",
+      "social_image",
+      "email_campaign",
+      "image_prompt",
+    ],
     type: "must_avoid",
     requirement:
       "Advertising materials may not convey preference/limitation tied to protected class; the regulation explicitly covers flyers, brochures, signs, banners, posters, billboards, and photographs/illustrations/symbols.",
-    why: "24 CFR 100.75(a)-(c); HUD's implementing rule; 'flyers, brochures ... banners, posters' named in (b); photos/illustrations/symbols named in (c)(1).",
+    why:
+      "24 CFR 100.75(a)-(c); HUD's implementing rule; 'flyers, brochures ... banners, posters' named in (b); photos/illustrations/symbols named in (c)(1).",
     satisfied_by:
       "Same guardrail as fha-3604c plus image-level review; property photos that depict only one demographic profile in lifestyle-marketing contexts should be flagged as risk in guidance.",
     severity: "hard",
@@ -117,7 +143,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_avoid",
     requirement:
       "Do not select advertising media/locations that deny segments of the housing market information based on protected class; do not refuse or differentially price ad placement on protected-class grounds.",
-    why: "24 CFR 100.75(c)(3)-(4); the regulatory hook behind platform special-ad-category treatment of housing ads.",
+    why:
+      "24 CFR 100.75(c)(3)-(4); the regulatory hook behind platform special-ad-category treatment of housing ads.",
     satisfied_by:
       "App guidance text when generating social campaigns: warn that paid housing ads face special-category restrictions and that protected-class-based targeting is prohibited.",
     severity: "hard",
@@ -133,7 +160,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_avoid",
     requirement:
       "Do not build the content checker on 24 CFR Part 109 / (former) 109.30 prohibited-word list: Part 109 is absent from the current CFR.",
-    why: "Verified: eCFR part index (2026-08-20 issue) has no Part 109; ?part=109 returns 404 'No matching content found'; LII 404; govinfo part-level XML redirects/errors (2012-2025). 100.75(d) still references the part (stale reference).",
+    why:
+      "Verified: eCFR part index (2026-08-20 issue) has no Part 109; ?part=109 returns 404 'No matching content found'; LII 404; govinfo part-level XML redirects/errors (2012-2025). 100.75(d) still references the part (stale reference).",
     satisfied_by:
       "Use the statutory-class + 100.75(c)(1) 'words/phrases/photos/symbols conveying preference' test as the operative standard; keep HUD/DOJ exemplar phrases as guidance-level risk flags with label 'risk pattern, not regulatory text'.",
     severity: "hard",
@@ -149,7 +177,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_appear",
     requirement:
       "Post and maintain the prescribed 11x14 fair housing poster at the place of business where dwellings are offered for sale/rental, at covered dwellings, and at all places of business participating in real-estate-related transactions/brokerage services (model-dwelling option for new construction).",
-    why: "24 CFR 110.10, 110.25; legend text is 'EQUAL HOUSING OPPORTUNITY ... IT IS ILLEGAL TO DISCRIMINATE AGAINST ANY PERSON BECAUSE OF RACE, COLOR, RELIGION, SEX, HANDICAP, FAMILIAL STATUS (HAVING ONE OR MORE CHILDREN), OR NATIONAL ORIGIN'. Poster requirement is physical display, not flyer content.",
+    why:
+      "24 CFR 110.10, 110.25; legend text is 'EQUAL HOUSING OPPORTUNITY ... IT IS ILLEGAL TO DISCRIMINATE AGAINST ANY PERSON BECAUSE OF RACE, COLOR, RELIGION, SEX, HANDICAP, FAMILIAL STATUS (HAVING ONE OR MORE CHILDREN), OR NATIONAL ORIGIN'. Poster requirement is physical display, not flyer content.",
     satisfied_by:
       "Open-house checklist / office checklist in-app; reuse the regulation's EHO legend as the authoritative footer phrase option.",
     severity: "hard",
@@ -165,14 +194,34 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_appear",
     requirement:
       "Recommended: add an 'Equal Housing Opportunity' statement line (and optionally the EHO logo) to flyer/social templates as a default footer.",
-    why: "Industry/HUD-program convention; expected by agents and MLSs; NOT a federal statute requiring the logo on every ad (the federal mandate is the poster rule). HUD's EHO logo page 404'd at access - brand usage verified via NAR page.",
+    why:
+      "Industry/HUD-program convention; expected by agents and MLSs; NOT a federal statute requiring the logo on every ad (the federal mandate is the poster rule). HUD's EHO logo page 404'd at access - brand usage verified via NAR page.",
     satisfied_by:
       "Footer element on native flyer/social templates with toggle + exact-logo asset; product copy should say 'recommended', not 'required by law'.",
     severity: "best practice",
     source_url: "https://www.nar.realtor/logos-and-trademark-rules",
     accessed: "2026-09-16",
-    notes: "HUD logo page unverified (404 at access); NAR landing page verified.",
+    notes:
+      "HUD logo page unverified (404 at access); NAR landing page verified; see eho-logo-asset-provenance for the logo-file provenance flag.",
     confidence: "verified",
+  },
+  {
+    id: "eho-logo-asset-provenance",
+    jurisdiction: "federal",
+    surface: ["flyer_footer", "social_footer", "design_assets"],
+    type: "must_avoid",
+    requirement:
+      "PROVENANCE FLAG (UNVERIFIED): do not ship an EHO logo IMAGE FILE in templates until its authoritative source and usage conditions are verified. The HUD logo page (hud.gov/program_offices/fair_housing_equal_opp/FHEO_logo) and the NAR 'logos-and-trademark-usage' path both returned HTTP 404 at access (2026-09-16). What IS verified: (i) the regulation's legend wording - 'EQUAL HOUSING OPPORTUNITY' + the statutory protected-class sentence (24 CFR 110.25); (ii) NAR's landing page /logos-and-trademark-rules (HTTP 200), which lists an Equal Housing Opportunity logo section whose asset file and precise use conditions were NOT re-verified. Shipping a logo of unverified provenance is an OPEN QUESTION for the owner.",
+    why:
+      "Compliance-task discipline: never ship an unverified asset in a compliance feature. 'Everyone uses the EHO logo' is a narrative, not a source.",
+    satisfied_by:
+      "Block the EHO logo FILE from template defaults until owner decision: (a) NAR-sourced mark used per NAR member rules, (b) HUD-sourced mark re-located on a live HUD page, or (c) legend text only. Meanwhile render 'Equal Housing Opportunity' as text (24 CFR 110.25 wording), optional, default-on.",
+    severity: "hard",
+    source_url: "https://www.hud.gov/program_offices/fair_housing_equal_opp/FHEO_logo",
+    accessed: "2026-09-16",
+    notes:
+      "UNVERIFIED - do not ship the asset as a requirement. Federal law does not require the EHO logo on every ad (poster rule = 24 CFR 110); the logo is program/industry convention. Owner call required before any logo file ships.",
+    confidence: "unverified",
   },
   {
     id: "nar-realtor-mark-usage",
@@ -181,7 +230,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_avoid",
     requirement:
       "Use REALTOR(R) mark only for NAR members, with the registered symbol, uppercase, per the Membership Marks Manual; do not use generically and do not modify the logo.",
-    why: "NAR membership marks rules; page states marks 'must be used correctly and according to the rules outlined in the Membership Marks Manual'.",
+    why:
+      "NAR membership marks rules; page states marks 'must be used correctly and according to the rules outlined in the Membership Marks Manual'.",
     satisfied_by:
       "Never auto-insert 'REALTOR' into copy; if agent declares member status, render 'REALTOR(R)' with symbol; keep logos unmodified; unused-by-default.",
     severity: "hard",
@@ -202,7 +252,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     satisfied_by:
       "Per-state disclosure block: '{Agent Name} - DRE # {license}' + '{Brokerage Name} - DRE # {broker license}' + license designation line; only render when user selects CA and supplies license fields.",
     severity: "hard",
-    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=10140.6",
+    source_url:
+      "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=10140.6",
     accessed: "2026-09-16",
     notes:
       "HTTP 200; text quoted in research notes. Applicability of (b)(1) to a given flyer is broker-confirmable ('solicitation materials intended to be the first point of contact').",
@@ -215,7 +266,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_appear",
     requirement:
       "All real estate advertising must include the licensed name of the brokerage firm; advertising must be recognizable as coming from a real estate licensee; when an agent's personal name appears, at least the last name as registered with the Commission must be used.",
-    why: "Fla. Admin. Code R. 61J2-10.025(1)-(2) (verified full text in-session from official flrules rule document).",
+    why:
+      "Fla. Admin. Code R. 61J2-10.025(1)-(2) (verified full text in-session from official flrules rule document).",
     satisfied_by:
       "Brokerage-name line mandatory on all FL renders; agent personal-name line renders registered last name. Florida state toggle in disclosure block.",
     severity: "hard",
@@ -246,7 +298,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     jurisdiction: "state:fl",
     surface: ["all_text_surfaces"],
     type: "must_avoid",
-    requirement: "No real estate advertisement placed by a licensee shall be fraudulent, false, deceptive, or misleading.",
+    requirement:
+      "No real estate advertisement placed by a licensee shall be fraudulent, false, deceptive, or misleading.",
     why: "Fla. Admin. Code R. 61J2-10.025(1) (verified in-session).",
     satisfied_by: "Same unsubstantiated-claim guardrail as ftc-truth; do not invent amenities.",
     severity: "hard",
@@ -255,32 +308,107 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     confidence: "verified",
   },
   {
-    id: "tx-535-153-candidate",
+    id: "tx-535-155a-name-and-broker",
     jurisdiction: "state:tx",
-    surface: ["flyer_footer", "social_footer"],
+    surface: ["flyer_footer", "social_footer", "email", "web_render"],
     type: "must_appear",
     requirement:
-      "CANDIDATE (UNVERIFIED): Texas license-holder advertising should include the license holder's name [rule 22 TAC 535.153]; likely also license number and TREC designation - exact required elements UNVERIFIED.",
-    why: "22 TAC 535.153 per TREC rule; official text not retrievable in-session (texreg.sos.state.tx.us returned 'Site Has Moved' to texas-sos.appianportalsgov.com; TREC paths 404).",
-    satisfied_by: "DO NOT ENFORCE. Add TX to per-state disclosure block once 535.153 text is verified from the SOS portal or TREC.",
+      "Every Texas advertisement must include, in a readily noticeable location: (a) the name of the license holder or team placing the advertisement, and (b) the broker's name (sized per tx-535-155a-half-size).",
+    why:
+      "22 TAC 535.155(a) (TREC 'Advertisements'); full rule text verified inline on TREC's official rules page, 2026-09-16.",
+    satisfied_by:
+      "TX disclosure block on native flyer/social templates: '{Agent/Team Name}' + '{Broker Name}' in one contiguous footer strip, both readily noticeable; size rule enforced per tx-535-155a-half-size.",
     severity: "hard",
-    source_url: "https://texas-sos.appianportalsgov.com/rules-and-meetings",
+    source_url: "https://www.trec.texas.gov/agency-information/rules-and-laws/trec-rules",
     accessed: "2026-09-16",
-    notes: "UNVERIFIED - do not ship as requirement. Follow-up task queued.",
-    confidence: "unverified",
+    notes:
+      "Citation correction: an earlier draft cited 22 TAC 535.153 for Texas advertising; 535.153 is 'Violating an Exclusive Agency' and is NOT the advertising rule. Related: 535.154 (alternate/team/assumed business names - team names must end 'team'/'group' and be registered before use); 535.155(b) defines 'advertisement' (covers publications, brochures, radio/TV, email, text, social media, Internet, stationery, cards, displays, signs, billboards; excludes communications to current clients and directional signs with only broker name/logo).",
+    confidence: "verified",
+  },
+  {
+    id: "tx-535-155a-half-size",
+    jurisdiction: "state:tx",
+    surface: ["flyer_footer", "social_footer", "email", "web_render"],
+    type: "must_appear",
+    requirement:
+      "The broker's name must be at least half the size of the largest contact information (phone, email, address, etc.) for any sales agent, associated broker, or team name contained in the advertisement.",
+    why: "22 TAC 535.155(a) (verified full text, TREC rules page, 2026-09-16).",
+    satisfied_by:
+      "Renderer layout rule: compute the largest contact-info font size in the disclosure strip; the broker-name line must be at least half of it.",
+    severity: "hard",
+    source_url: "https://www.trec.texas.gov/agency-information/rules-and-laws/trec-rules",
+    accessed: "2026-09-16",
+    notes: "Was mis-cited as 535.153 in an earlier draft; correct rule is 535.155(a).",
+    confidence: "verified",
+  },
+  {
+    id: "tx-535-155e-social-profile",
+    jurisdiction: "state:tx",
+    surface: ["social_footer", "social_caption", "email"],
+    type: "must_appear",
+    requirement:
+      "For an advertisement placed on social media or by text message, the required names (license holder/team + broker) may be located on a separate page or the account user profile page IF that page is (i) readily accessible by a direct link from the social media post or text and (ii) readily noticeable on that page/profile.",
+    why: "22 TAC 535.155(e) (verified full text, TREC rules page, 2026-09-16).",
+    satisfied_by:
+      "Product decision to make explicitly: rendering the disclosure block ON the social image is the safer default; 535.155(e) is the allowance a TX agent may use (disclosures on a linked profile page). Default to on-image; do not auto-omit.",
+    severity: "hard",
+    source_url: "https://www.trec.texas.gov/agency-information/rules-and-laws/trec-rules",
+    accessed: "2026-09-16",
+    notes:
+      "This is an allowance, not a relaxation of tx-535-155a-name-and-broker; the profile page must actually carry the disclosures and be directly linked from the post/text.",
+    confidence: "verified",
+  },
+  {
+    id: "tx-535-155f-misleading-list",
+    jurisdiction: "state:tx",
+    surface: ["property_description", "flyer_text", "social_caption", "email_campaign", "listing_summary"],
+    type: "must_avoid",
+    requirement:
+      "A Texas advertisement may not: be inaccurate in any material fact or representation; identify a sales agent as a broker; use a title, email or website address implying a sales agent runs the brokerage; use a team name implying independent brokerage services (forbidden team-name terms: 'brokerage', 'company', 'associates'); use a sales-agent name other than as shown on the license (or a registered alternate); cause the public to believe an unlicensed person is engaged in brokerage; create confusion about permitted property use; make a value claim not based on a disclosed, readily available appraisal; imply involvement in a transaction the person played no role in; advertise a property under an exclusive listing without the listing broker's permission AND disclosure of the listing broker's name (unless waived in writing); keep offering a listed property more than 10 days after the listing agreement ends; advertise a property 10+ days after closing without stating its current status; offer rebates without the required consent/disclosure; offer undisclosed compensation for promoting a third-party service; or use rankings not based on objective criteria disclosed in the ad.",
+    why:
+      "22 TAC 535.155(f) (verified full text, TREC rules page, 2026-09-16); team-name forbidden terms also 535.154(c).",
+    satisfied_by:
+      "Same unsubstantiated-claim guardrail as ftc-truth-in-advertising, plus: no sales-agent-presented-as-broker titles, no team display name containing forbidden words, value-claim superlatives blocked without a user-supplied appraisal basis.",
+    severity: "hard",
+    source_url: "https://www.trec.texas.gov/agency-information/rules-and-laws/trec-rules",
+    accessed: "2026-09-16",
+    notes: "Itemized from the rule text; the opening clause is the material-facts catch-all.",
+    confidence: "verified",
+  },
+  {
+    id: "tx-535-155-no-license-number",
+    jurisdiction: "state:tx",
+    surface: ["rule_engine_design", "flyer_footer", "social_footer"],
+    type: "must_avoid",
+    requirement:
+      "Do NOT add a license-number requirement for Texas AGENT advertising: the full text of 22 TAC 535.155 contains no license-number display requirement for license-holder advertisements. (Contrast: TX real-estate INSPECTOR advertisements under 22 TAC 535.221 DO require license numbers on websites and social media - do not import that rule onto agent/flyer surfaces.)",
+    why:
+      "Verified by absence: full 535.155 text read inline from TREC's official rules page on 2026-09-16; no license-number provision for agent advertising. 535.221 (inspectors) verified on the same page.",
+    satisfied_by:
+      "TX disclosure block must NOT render a license-number field as a TX requirement (agent license number may only ever be optional user-supplied info, never a TX-mandated element); guard checklist copy against claiming a TX license number is required.",
+    severity: "hard",
+    source_url: "https://www.trec.texas.gov/agency-information/rules-and-laws/trec-rules",
+    accessed: "2026-09-16",
+    notes:
+      "Design-critical negative finding - prevents inventing a requirement. Mirrors the cfr109-status-do-not-cite pattern.",
+    confidence: "verified",
   },
   {
     id: "ny-dos-candidate",
     jurisdiction: "state:ny",
     surface: ["flyer_footer", "social_footer"],
     type: "must_appear",
-    requirement: "CANDIDATE (UNVERIFIED): New York licensee advertising rules (19 NYCRR Part 175 / DOS guidance) - exact requirements UNVERIFIED in-session.",
-    why: "dos.ny.gov returned HTTP 403 to programmatic access; no primary source pulled.",
-    satisfied_by: "DO NOT ENFORCE. Revisit NY via browser/archive in follow-up.",
+    requirement:
+      "CANDIDATE (UNVERIFIED): New York licensee advertising rules (19 NYCRR Part 175 / DOS guidance) - exact requirements UNVERIFIED in-session.",
+    why:
+      "All primary routes blocked on 2026-09-16: dos.ny.gov/real-estate returned HTTP 403 to curl and served a Cloudflare 'Attention Required!' challenge via headless browser (no content); nysenate.gov legislation pages returned HTTP 403; public.leginfo.state.ny.us / legislation.nysenate.gov probes were launched but results were lost to a tool-channel failure (cannot claim any verified); the Internet Archive (wayback availability API) returned no archived snapshots for the DOS real-estate pages.",
+    satisfied_by:
+      "DO NOT ENFORCE. Revisit NY via browser/archive in follow-up; do not ship a NY-specific requirement until a live NY DOS page, 19 NYCRR text, or NY Senate/Assembly statute text is captured.",
     severity: "hard",
     source_url: "https://www.dos.ny.gov/licensing/real-estate",
     accessed: "2026-09-16",
-    notes: "UNVERIFIED - do not ship as requirement.",
+    notes:
+      "UNVERIFIED - do not ship as requirement. Routes tried: dos.ny.gov (403 + Cloudflare challenge), nysenate.gov (403), public.leginfo.state.ny.us (results lost to tool failure), Internet Archive (no snapshots).",
     confidence: "unverified",
   },
   {
@@ -289,13 +417,14 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     surface: ["flyer_footer", "social_footer"],
     type: "must_appear",
     requirement:
-      "All states other than CA and FL are UNVERIFIED for license-disclosure requirements. National product needs a per-state disclosure-snippet library populated state-by-state from primary sources before shipping state-specific defaults.",
-    why: "Only CA and FL verified in-session; state disclosure laws differ.",
+      "All states other than CA, FL, and TX are UNVERIFIED for license-disclosure requirements. National product needs a per-state disclosure-snippet library populated state-by-state from primary sources before shipping state-specific defaults.",
+    why: "Only CA, FL, and TX verified in-session; state disclosure laws differ.",
     satisfied_by: "State-configurable disclosure block; blank-by-default until verified for a state.",
     severity: "best practice",
     source_url: "n/a",
     accessed: "2026-09-16",
-    notes: "Explicitly named unverified jurisdictions: TX, NY, all others.",
+    notes:
+      "Explicitly named unverified jurisdictions: NY, all others (TX moved to verified on 2026-09-16 via 22 TAC 535.155).",
     confidence: "unverified",
   },
   {
@@ -306,11 +435,13 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     requirement:
       "Best practice: attribute listing data source and listing brokerage per the relevant MLS rules; MLS texts are market-local and were NOT verified in-session.",
     why: "Common MLS rule pattern; no national text available to verify.",
-    satisfied_by: "Optional attribution line the agent can fill (e.g., 'Source: {MLS}'); label as agent-confirmable.",
+    satisfied_by:
+      "Optional attribution line the agent can fill (e.g., 'Source: {MLS}'); label as agent-confirmable.",
     severity: "best practice",
     source_url: "n/a",
     accessed: "2026-09-16",
-    notes: "UNVERIFIED per-MLS. Follow-up: capture 2-3 major MLS rule pages.",
+    notes:
+      "UNVERIFIED per-MLS. Three candidate rule pages returned HTTP 200 at access (2026-09-16) but their attribution/listings-source text was NOT yet read: Bright MLS https://www.brightmls.com/about/legal/rules; California Regional MLS (CRMLS) https://www.crmls.org/legal/rules; Midwest Real Estate Data (MRED) https://www.mredllc.com/. Read each page's rule text and attribute each rule to its named MLS before shipping.",
     confidence: "unverified",
   },
   {
@@ -320,13 +451,15 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_avoid",
     requirement:
       "Paid housing ads on Meta are a 'special ad category': no age/gender/postcode/ZIP/racial/religious-affinity targeting; advertisers must use expanded/broad audiences. CITE PENDING - help-center anchor returned 404 at access.",
-    why: "Meta platform policy for housing ads (special ad categories). Policy directionally certain; live URL unverified.",
+    why:
+      "Meta platform policy for housing ads (special ad categories). Policy directionally certain; live URL unverified.",
     satisfied_by:
       "Guidance copy appended to generated social campaign text warning about special-ad-category restrictions; do not emit targeting recommendations keyed to protected classes.",
     severity: "hard",
     source_url: "https://www.facebook.com/business/help/1517919519278477",
     accessed: "2026-09-16",
-    notes: "URL returned HTTP 404 at access - re-verify live Meta help URL before shipping citation. Enforcement risk: ad rejection/account limits.",
+    notes:
+      "URL returned HTTP 404 at access; pass-2 also got HTTP 400 from business.facebook.com/help/... - re-verify a live Meta help URL before shipping citation. Enforcement risk: ad rejection/account limits. UNVERIFIED citation.",
     confidence: "unverified",
   },
   {
@@ -341,7 +474,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     severity: "hard",
     source_url: "https://support.google.com/adspolicy/answer/2465303",
     accessed: "2026-09-16",
-    notes: "HTTP 404 at access - reverify. UNVERIFIED citation.",
+    notes:
+      "HTTP 404 at access for answer/2465303; pass-2 also got HTTP 404 for answer/1581051 - reverify a live Google Ads policy URL. UNVERIFIED citation.",
     confidence: "unverified",
   },
   {
@@ -351,7 +485,8 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     type: "must_avoid",
     requirement:
       "Advertising must be truthful and non-deceptive; claims must be substantiated before they are made; advertisers are liable for claims in their ads including AI-generated copy.",
-    why: "FTC Act Section 5 enforcement; FTC 'Advertising & Marketing' business guidance (verified live HTTP 200).",
+    why:
+      "FTC Act Section 5 enforcement; FTC 'Advertising & Marketing' business guidance (verified live HTTP 200).",
     satisfied_by:
       "Prompt rule: no invented amenities/facts, no unsubstantiated superlatives/claims not supplied by the user; flag modal verbs of claim ('guaranteed', 'best', '#1') unless user-confirmed.",
     severity: "hard",
@@ -550,9 +685,9 @@ const JURISDICTION_LABELS: Record<string, string> = {
   "platform:google": "Google Ads policy",
   "state:ca": "California",
   "state:fl": "Florida",
-  "state:tx": "Texas (not verified)",
+  "state:tx": "Texas",
   "state:ny": "New York (not verified)",
-  "state:all-other": "All states other than CA and FL (not verified)",
+  "state:all-other": "All states other than CA, FL and TX (not verified)",
 };
 
 export function jurisdictionLabel(jurisdiction: string): string {
@@ -605,12 +740,22 @@ const RULE_SUMMARIES: Record<string, string> = {
     "Florida, internet/social: the brokerage name must sit adjacent to (or immediately above/below) the contact information.",
   "fl-61j2-10-025-no-false-advertising":
     "Florida: no fraudulent, false, deceptive or misleading real estate advertising.",
-  "tx-535-153-candidate":
-    "Texas candidate rule (unverified): licence-holder's name, possibly licence number and TREC designation — exact elements not confirmed.",
+  "eho-logo-asset-provenance":
+    "Do not ship an EHO logo image file: its authoritative source could not be verified. 24 CFR 110.25's \u201cEQUAL HOUSING OPPORTUNITY\u201d legend text stays the default.",
+  "tx-535-155a-name-and-broker":
+    "Texas: ads must name the license holder (or team) and the broker, in a readily noticeable place.",
+  "tx-535-155a-half-size":
+    "Texas: the broker's name must be at least half the size of the largest contact information in the ad.",
+  "tx-535-155e-social-profile":
+    "Texas, social/text: the required names may live on a directly linked, readily noticeable profile page — on-image remains the safer default.",
+  "tx-535-155f-misleading-list":
+    "Texas: no inaccurate material claims, no sales agent presented as a broker, no team name implying its own brokerage, plus the rule's other prohibitions.",
+  "tx-535-155-no-license-number":
+    "Texas has NO license-number display requirement for agent advertising — never render a TX licence number as required.",
   "ny-dos-candidate":
     "New York candidate rule (unverified): licensee advertising requirements — no primary source could be pulled.",
   "other-states-candidate":
-    "Every state except California and Florida: license-disclosure requirements have not been verified yet.",
+    "Every state except California, Florida and Texas: license-disclosure requirements have not been verified yet.",
   "mls-attribution":
     "Best practice: attribute the listing data source/MLS and the listing brokerage — MLS texts are market-local and unverified.",
   "meta-special-ad-category":
@@ -659,10 +804,18 @@ export const EHO_LEGEND = "Equal Housing Opportunity";
  * declares NAR membership (nar-realtor-mark-usage). Never auto-inserted. */
 export const REALTOR_MARK = "REALTOR\u00AE";
 
-/** Jurisdictions with VERIFIED advertising rules. Every other state is
- * unverified (other-states-candidate): fields are offered, no requirement is
- * claimed, nothing is enforced. */
-export const VERIFIED_JURISDICTIONS = ["FL", "CA"] as const;
+/** Jurisdictions with VERIFIED advertising rules (v1.1.0 data). Every other
+ * state is unverified (other-states-candidate): fields are offered, no
+ * requirement is claimed, nothing is enforced.
+ *
+ * HONESTY NOTE — TX is verified at the RULE level only (22 TAC 535.155, see the
+ * five tx-* rules), it is NOT yet implemented in the render path:
+ * `disclosureWarnings()` below has FL and CA branches, and there is no TX branch,
+ * so no TX-specific warning or layout rule fires yet. The two TX rendering
+ * requirements still to build are (1) broker name at least HALF the size of the
+ * largest contact info, and (2) NO licence-number field (TX agent ads have no
+ * licence-number requirement). Nothing here claims TX rendering is enforced. */
+export const VERIFIED_JURISDICTIONS = ["FL", "CA", "TX"] as const;
 
 /** User-supplied disclosure profile - every field optional, never fabricated;
  * an empty field renders NOTHING (no placeholder, no bracket text). */
@@ -686,6 +839,9 @@ const cleanStr = (v?: string) => (typeof v === "string" ? v.trim() : "");
  *  - FL + missing brokerage name -> WARNING (61J2-10.025 must surface, not pass).
  *  - CA + any disclosure field present -> INFO confirmation (B&P 10140.6(b)(1)
  *    applicability is broker-confirmable - a confirmation, never a guarantee).
+ *  - TX -> not yet implemented here: the TX rules ARE verified in the data
+ *    (v1.1.0) but this function has no TX branch, so a TX request gets no
+ *    warning and no requirement is claimed. Do not read silence as clearance.
  *  - Any other state -> no requirement claimed, no warning.
  */
 export function disclosureWarnings(
