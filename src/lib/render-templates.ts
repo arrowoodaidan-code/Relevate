@@ -127,6 +127,10 @@ export interface RenderTemplateInput {
    * (eho-statement-footer-recommended: industry convention, NOT a legal
    * requirement; the federal mandate is the 11x14 office poster). */
   ehoFooter?: boolean;
+  /** EHO house MARK (logo image) — OFF by default: the asset's provenance is
+   * unverified (provisional artwork). The legend TEXT (ehoFooter) is the
+   * verified, default-on part (exact 24 CFR 110.25 wording). */
+  ehoMark?: boolean;
   imageDataUrl?: string;
   brandStyle?: string;
   /** Server-resolved, non-client design layers. */
