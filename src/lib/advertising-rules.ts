@@ -643,11 +643,6 @@ export const COMPLIANCE_PANEL_DISCLAIMERS = {
     "Relevate does not check your design and never certifies compliance. Ticks are your own notes, and unticked items are not a failure.",
 } as const;
 
-// TEMP stand-ins (fullstack, 2026-09-17): branded-templates.ts (DE disclosure-block WIP)
-// imports these but they were never defined in any committed version — the build and the
-// dev server were failing on them. Minimal honest defaults; DE owns final wording.
-export const EHO_LEGEND = "Equal Housing Opportunity";
-export const REALTOR_MARK = "REALTOR®";
 
 // ---------------------------------------------------------------------------
 // Render-path disclosure exports (task 834b0e71, Design Engineer). The native
