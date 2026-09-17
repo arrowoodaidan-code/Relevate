@@ -6,6 +6,8 @@
  * `posts` array; the blog index and sitemap pick it up automatically.
  */
 
+import { planAmountCents, usdDisplay } from "./pricing-display";
+
 export type ContentBlock =
   | { type: "p"; text: string }
   | { type: "h2"; text: string }
@@ -147,7 +149,7 @@ export const posts: BlogPost[] = [
       { type: "h2", text: "Your next step" },
       {
         type: "p",
-        text: "If you list more than a handful of properties a year, you already know how much time this takes. Relevate generates property descriptions, open house flyers, social posts, email campaigns, and listing summaries — all on-brand, all in under a minute. Start your free trial and write your first listing in the next ten minutes.",
+        text: "If you list more than a handful of properties a year, you already know how much time this takes. Relevate generates property descriptions, open house flyers, social posts, email campaigns, and listing summaries — all on-brand, all in under a minute. Create a free account and write your first listing in the next ten minutes.",
       },
     ],
   },
@@ -210,7 +212,9 @@ export const posts: BlogPost[] = [
       {
         type: "tip",
         title: "Launch pricing",
-        text: "Starter: ~$14.50/mo | Pro: ~$39.50/mo | Team: ~$99.50/mo for your first 3 months with code LAUNCH50. Cancel anytime.",
+        // Half of each list price, read from the Stripe price record so this can never
+        // go stale (the old hardcoded Starter figure was still based on the retired $29 price).
+        text: `Starter: ~${usdDisplay(planAmountCents("starter_monthly") / 2)}/mo | Pro: ~${usdDisplay(planAmountCents("pro") / 2)}/mo | Team: ~${usdDisplay(planAmountCents("team") / 2)}/mo for your first 3 months with code LAUNCH50. Cancel anytime.`,
       },
       { type: "h2", text: "What's next" },
       {

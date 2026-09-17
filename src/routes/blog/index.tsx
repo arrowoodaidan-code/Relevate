@@ -112,7 +112,7 @@ function BlogIndexPage() {
             href="/signup"
             className="mt-6 inline-block rounded-lg wood-button px-6 py-3 text-sm font-semibold text-emerald-100"
           >
-            Start your free trial
+            Create a free account
           </a>
         </div>
       </main>

@@ -197,7 +197,7 @@ function BlogPostPage() {
               href="/signup"
               className="inline-block rounded-lg wood-button px-6 py-3 text-sm font-semibold text-emerald-100"
             >
-              Start your free trial
+              Create a free account
             </a>
             <a
               href="/"

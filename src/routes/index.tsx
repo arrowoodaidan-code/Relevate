@@ -4,6 +4,11 @@ import { FeatureCard, Navigation, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
 import { startCheckout } from "~/lib/product-checkout";
+import { monthlyPriceDisplay } from "~/lib/pricing-display";
+
+/* The CTA section's button subscribes to Starter monthly; its label quotes the real
+ * price from the Stripe price record rather than promising a free trial. */
+const STARTER_MONTHLY = monthlyPriceDisplay("starter_monthly");
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -318,7 +323,7 @@ function Home() {
                 href="/signup"
                 className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto"
               >
-                Start Free Trial
+                Create a free account
                 <svg className="ml-2 inline-block h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
@@ -348,7 +353,7 @@ function Home() {
                 <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                5 free listings to start
+                5 free listings a month
               </div>
             </div>
           </div>
@@ -441,8 +446,9 @@ function Home() {
               Ready to save hours on every listing?
             </h2>
             <p className="mt-4 text-lg text-emerald-200/70">
-              Join thousands of agents who use Relevate to create professional marketing
-              materials in minutes. Start your free trial today — no credit card required.
+              Relevate turns each listing into professional marketing materials in
+              minutes — or start with a free account and use the five listings a month
+              it includes.
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <button
@@ -450,7 +456,9 @@ function Home() {
                 disabled={checkoutLoading === "starter_monthly"}
                 className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto disabled:opacity-60"
               >
-                {checkoutLoading === "starter_monthly" ? "Redirecting..." : "Start Your Free Trial"}
+                {checkoutLoading === "starter_monthly"
+                  ? "Redirecting..."
+                  : `Subscribe to Starter — ${STARTER_MONTHLY.price}${STARTER_MONTHLY.period}`}
                 <svg className="ml-2 inline-block h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
@@ -463,7 +471,13 @@ function Home() {
               </a>
             </div>
             <p className="mt-6 text-sm text-emerald-300/50">
-              Free 14-day trial. 5 free listings included. Cancel anytime.
+              Starter is {STARTER_MONTHLY.price}
+              {STARTER_MONTHLY.period}, up to 5 listings a month, billed through Stripe
+              until you cancel. No free trial. Or{" "}
+              <a href="/signup" className="underline hover:text-emerald-100">
+                create a free account
+              </a>{" "}
+              for up to 5 listings a month at no charge.
             </p>
           </div>
         </div>

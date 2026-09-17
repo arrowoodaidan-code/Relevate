@@ -148,7 +148,7 @@ function AboutPage() {
               href="/signup"
               className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto"
             >
-              Start Free Trial
+              Create a free account
             </a>
             <a
               href="/demo"
@@ -322,7 +322,7 @@ function AboutPage() {
                 href="/signup"
                 className="w-full rounded-lg wood-button-dark px-6 py-3 text-sm font-semibold text-emerald-200/80 shadow-sm sm:w-auto"
               >
-                Or start your free trial
+                Or create a free account
               </a>
             </div>
           </div>
