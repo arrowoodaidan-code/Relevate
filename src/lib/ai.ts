@@ -6,6 +6,13 @@
 
 import type { ContentType, PropertyDetails, TemplateRegion, TemplateRegionLabel } from "./prompts";
 import { buildPrompt, buildImagePrompt } from "./prompts";
+import {
+  scanFairHousing,
+  fairHousingStrictRetryBlock,
+  fairHousingImageAvoidBlock,
+  type FairHousingOutcome,
+  type FairHousingScanResult,
+} from "./fair-housing";
 import { randomUUID } from "node:crypto";
 import { sql } from "../db";
 
@@ -133,9 +140,9 @@ Best regards,
 [Phone Number]
 [Email]
 
-P.S. Homes in this neighborhood are selling fast — don't miss your chance to see this one before it's gone!`,
+P.S. Open house this Sunday from 2-4pm — reply for the address and private showing times.`,
 
-    "listing-summary": `${address} presents a remarkable opportunity for buyers seeking a ${beds}-bedroom, ${baths}-bathroom home offering ${sqft} square feet of living space at ${price}. This property stands out for its exceptional layout, premium finishes, and move-in-ready condition. The ideal buyer is a professional couple or growing family looking for a home that combines modern comfort with practical functionality. Key selling points include ${features}, along with the home's prime location near shopping, dining, and excellent schools. Priced competitively for the current market, this home offers strong value given its condition, features, and location — making it an attractive option for buyers who want quality without compromise.`,
+    "listing-summary": `${address} presents a remarkable opportunity for buyers seeking a ${beds}-bedroom, ${baths}-bathroom home offering ${sqft} square feet of living space at ${price}. This property stands out for its exceptional layout, premium finishes, and move-in-ready condition. The layout suits buyers who need modern comfort with practical functionality — flexible living space, ample storage, and low-maintenance upkeep. Key selling points include ${features}, along with the home's prime location near shopping, dining, and excellent schools. Priced competitively for the current market, this home offers strong value given its condition, features, and location — making it an attractive option for buyers who want quality without compromise.`,
   };
 
   return mocks[contentType] || "Content generation unavailable for this type.";
@@ -148,6 +155,7 @@ P.S. Homes in this neighborhood are selling fast — don't miss your chance to s
 async function generateWithOpenAI(
   contentType: ContentType,
   details: PropertyDetails,
+  fairHousingRetry?: FairHousingScanResult,
 ): Promise<string> {
   // Analyze an uploaded raster template before generation. The region map is
   // cached and becomes a concise-copy constraint in buildPrompt().
@@ -183,7 +191,17 @@ async function generateWithOpenAI(
     }
   }
 
-  const { systemPrompt, userPrompt } = buildPrompt(contentType, details);
+  let { systemPrompt, userPrompt } = buildPrompt(contentType, details);
+  // Fair Housing strict retry: when the first draft tripped the risk-pattern
+  // scan, harden both prompts and name the exact phrases that were caught.
+  if (fairHousingRetry && !fairHousingRetry.clean) {
+    systemPrompt = systemPrompt + fairHousingStrictRetryBlock(fairHousingRetry.hits);
+    userPrompt =
+      userPrompt +
+      `\n\nSTRICT REWRITE REQUIRED: your previous draft contained these risk phrases: ${fairHousingRetry.hits
+        .map((h) => `"${h.matched}"`)
+        .join(", ")}. Do not include them or anything similar in any section of the output.`;
+  }
 
   const response = await fetch(
     "https://api.openai.com/v1/chat/completions",
@@ -244,7 +262,11 @@ function capHashtags(content: string, max = 5): string {
 export async function generateContent(
   contentType: ContentType,
   details: PropertyDetails,
-): Promise<{ content: string; source: "openai" | "mock" }> {
+): Promise<{
+  content: string;
+  source: "openai" | "mock";
+  fairHousing?: FairHousingOutcome;
+}> {
   let content: string;
   let source: "openai" | "mock";
 
@@ -275,7 +297,37 @@ export async function generateContent(
     : randomUUID();
   saveToDatabase(propertyId, contentType, content);
 
-  return { content, source };
+  // Fair Housing post-generation check: scan the generated copy for risk
+  // patterns. On a hit, retry ONCE with the strict instruction naming the
+  // phrases. A still-flagged result is returned WITH the flag — never
+  // silently shipped (task 01bc80ec).
+  const firstScan = scanFairHousing(content);
+  if (firstScan.clean) {
+    return { content, source };
+  }
+  console.warn(
+    "[fair-housing] risk patterns in generated %s: %s",
+    contentType,
+    firstScan.hits.map((h) => h.matched).join(" | "),
+  );
+  if (process.env.OPENAI_API_KEY && source === "openai") {
+    try {
+      const retryContent = await generateWithOpenAI(contentType, details, firstScan);
+      const capped = contentType === "social-media-post" ? capHashtags(retryContent) : retryContent;
+      const retryScan = scanFairHousing(capped);
+      if (retryScan.clean) {
+        return {
+          content: capped,
+          source,
+          fairHousing: { flagged: false, repaired: true, hits: firstScan.hits },
+        };
+      }
+      console.warn("[fair-housing] strict retry still flagged — returning flagged content");
+    } catch (retryErr) {
+      console.error("[fair-housing] strict retry failed, returning flagged content:", retryErr);
+    }
+  }
+  return { content, source, fairHousing: { flagged: true, hits: firstScan.hits } };
 }
 
 /**
@@ -937,25 +989,20 @@ export async function refineContent(
   contentType: ContentType,
   currentContent: string,
   instruction: string,
-): Promise<string> {
+): Promise<{ revised: string; fairHousing?: FairHousingOutcome }> {
   if (!process.env.OPENAI_API_KEY) {
     console.warn("[refineContent] OPENAI_API_KEY not set — returning content unchanged");
-    return currentContent;
+    return { revised: currentContent };
   }
-
   const isEmail = contentType === "email-campaign";
   const plainTextRule = isEmail
     ? " The content type is an email campaign, so it MUST remain PLAIN TEXT with no HTML tags whatsoever (no <p>, <h1>, <ul>, <a>, <br>, <div>, or any other markup)."
     : "";
-
   const systemPrompt =
     `You are an expert real estate marketing copywriter. Your task is to revise existing content based on the user's specific instruction.` +
     plainTextRule +
     ` Preserve the same format, structure, and tone of the original content unless the instruction explicitly says to change it. Output ONLY the revised content — no commentary, no code fences, no JSON, no markdown formatting.`;
-
-  const userPrompt = `Content type: ${contentType}\n\nExisting content:\n---\n${currentContent}\n---\n\nUser instruction: ${instruction}\n\nRevise the content according to this instruction. Output ONLY the revised content.`;
-
-  try {
+  const callOnce = async (userInstruction: string): Promise<string> => {
     const response = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -968,29 +1015,61 @@ export async function refineContent(
           model: "gpt-4o-mini",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+            { role: "user", content: userInstruction },
           ],
           temperature: 0.7,
           max_tokens: 1500,
         }),
       },
     );
-
     if (!response.ok) {
       const error = await response.text();
-      console.error(`[refineContent] OpenAI API error: ${response.status} — ${error}`);
-      return currentContent;
+      throw new Error(`OpenAI API error: ${response.status} — ${error}`);
     }
-
     const data = await response.json();
-    const revised = data.choices[0]?.message?.content?.trim();
+    return (data.choices[0]?.message?.content?.trim() as string) || "";
+  };
+  const finalize = (text: string): string =>
     // Owner directive (Aug 13): keep social-post hashtags capped at 5 even after
     // refinement (e.g. an instruction to "add more hashtags" must not exceed the cap).
-    const result = contentType === "social-media-post" ? capHashtags(revised) : revised;
-    return result || currentContent;
+    contentType === "social-media-post" ? capHashtags(text) : text;
+  try {
+    const first = await callOnce(
+      `Content type: ${contentType}\n\nExisting content:\n---\n${currentContent}\n---\n\nUser instruction: ${instruction}\n\nRevise the content according to this instruction. Output ONLY the revised content.`,
+    );
+    const revised = first ? finalize(first) : currentContent;
+    // Fair Housing check on refined output: a user instruction can inject
+    // targeting language ("make it appeal to young families") — never ship it.
+    const scan = scanFairHousing(revised);
+    if (scan.clean) {
+      return { revised };
+    }
+    console.warn(
+      "[fair-housing] risk patterns in refined %s: %s",
+      contentType,
+      scan.hits.map((h) => h.matched).join(" | "),
+    );
+    try {
+      const strictInstruction =
+        `${instruction}\n\nFAIR HOUSING OVERRIDE: your previous revision contained these risk phrases: ${scan.hits
+          .map((h) => `"${h.matched}"`)
+          .join(", ")}. Rewrite removing ALL of them and anything like them — describe only the property, never any type of person or demographic.`;
+      const second = await callOnce(
+        `Content type: ${contentType}\n\nExisting content:\n---\n${currentContent}\n---\n\nUser instruction: ${strictInstruction}\n\nRevise the content according to this instruction. Output ONLY the revised content.`,
+      );
+      if (second) {
+        const finalText = finalize(second);
+        if (scanFairHousing(finalText).clean) {
+          return { revised: finalText, fairHousing: { flagged: false, repaired: true, hits: scan.hits } };
+        }
+      }
+    } catch (retryErr) {
+      console.error("[fair-housing] refine strict retry failed:", retryErr);
+    }
+    return { revised, fairHousing: { flagged: true, hits: scan.hits } };
   } catch (err) {
     console.error("[refineContent] Error:", err);
-    return currentContent;
+    return { revised: currentContent };
   }
 }
 
@@ -1001,7 +1080,7 @@ export async function refineContent(
 export async function generateImage(
   contentType: ContentType,
   details: PropertyDetails,
-): Promise<string> {
+): Promise<{ imageDataUrl: string; fairHousing?: FairHousingOutcome }> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
@@ -1041,7 +1120,21 @@ export async function generateImage(
     }
   }
 
-  const prompt = buildImagePrompt(contentType, details, styleHint, propertyVisuals, agentIdentity);
+  let prompt = buildImagePrompt(contentType, details, styleHint, propertyVisuals, agentIdentity);
+  // Fair Housing check on the IMAGE prompt: 100.75 covers photos/illustrations
+  // too. Hits usually come from user-supplied detail (description/keyFeatures)
+  // leaking into the prompt — add the avoidance instruction before the single
+  // (paid) image call and surface the hits to the caller.
+  const promptScan = scanFairHousing(prompt);
+  let imageFairHousing: FairHousingOutcome | undefined;
+  if (!promptScan.clean) {
+    console.warn(
+      "[fair-housing] risk patterns in image prompt: %s",
+      promptScan.hits.map((h) => h.matched).join(" | "),
+    );
+    prompt = `${prompt}${fairHousingImageAvoidBlock(promptScan.hits)}`;
+    imageFairHousing = { flagged: true, hits: promptScan.hits };
+  }
 
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -1068,8 +1161,12 @@ export async function generateImage(
   const b64 = data.data?.[0]?.b64_json;
   const imageUrl = data.data?.[0]?.url as string | undefined;
 
+  const finish = (dataUrl: string) => ({
+    imageDataUrl: dataUrl,
+    ...(imageFairHousing ? { fairHousing: imageFairHousing } : {}),
+  });
   if (b64) {
-    return `data:image/png;base64,${b64}`;
+    return finish(`data:image/png;base64,${b64}`);
   }
   if (imageUrl) {
     // Fetch the image and convert to data URL
@@ -1079,7 +1176,7 @@ export async function generateImage(
     }
     const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
     const mimeType = imgRes.headers.get("content-type") || "image/png";
-    return `data:${mimeType};base64,${imgBuffer.toString("base64")}`;
+    return finish(`data:${mimeType};base64,${imgBuffer.toString("base64")}`);
   }
   throw new Error("No image data returned from OpenAI");
 }

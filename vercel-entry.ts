@@ -692,6 +692,7 @@ export default async function vercelHandler(
             content: result.content,
             contentType,
             source: result.source,
+            ...(result.fairHousing ? { fairHousing: result.fairHousing } : {}),
             ...(savedPropertyId ? { savedPropertyId } : {}),
           },
         });
@@ -786,12 +787,12 @@ export default async function vercelHandler(
           ...(bodyImage ? { templateImage: bodyImage } : {}),
         };
 
-        const imageDataUrl = await generateImage(
+        const { imageDataUrl, fairHousing: imageFairHousing } = await generateImage(
           contentType as ContentType,
           mergedDetails as PropertyDetails,
         );
 
-        sendJson(res, 200, { success: true, imageDataUrl });
+        sendJson(res, 200, { success: true, imageDataUrl, ...(imageFairHousing ? { fairHousing: imageFairHousing } : {}) });
         return;
       } catch (error: any) {
         console.error("[team-site] /api/generate-image error:", error);
@@ -854,13 +855,13 @@ export default async function vercelHandler(
           return;
         }
 
-        const revised = await refineContent(
+        const { revised, fairHousing: refineFairHousing } = await refineContent(
           contentType as ContentType,
           currentContent,
           instruction,
         );
 
-        sendJson(res, 200, { success: true, content: revised });
+        sendJson(res, 200, { success: true, content: revised, ...(refineFairHousing ? { fairHousing: refineFairHousing } : {}) });
         return;
       } catch (error: any) {
         console.error("[team-site] /api/refine error:", error);

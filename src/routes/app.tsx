@@ -340,6 +340,15 @@ function AppDashboard() {
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  // Fair Housing guardrail (task 01bc80ec): server-side risk-pattern result.
+  // flagged=true -> hits survived the strict retry; the UI must show them.
+  // flagged=false with repaired=true -> the retry produced clean copy; the
+  // initially caught phrases are kept for transparency.
+  const [fairHousingWarning, setFairHousingWarning] = useState<{
+    flagged: boolean;
+    repaired?: boolean;
+    hits?: Array<{ label: string; matched: string; note: string; outsideFederalSeven: boolean }>;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [customFeature, setCustomFeature] = useState("");
   const [activeTab, setActiveTab] = useState<"input" | "result">("input");
@@ -576,6 +585,7 @@ function AppDashboard() {
     setRenderedImage(null);
     renderedBodyRef.current = null;
     setRenderError(null);
+    setFairHousingWarning(null);
     setActiveTab("result");
 
     try {
@@ -589,6 +599,7 @@ function AppDashboard() {
       const data = await res.json();
       if (data.success && data.data?.content) {
         setGeneratedContent(data.data.content);
+        setFairHousingWarning(data.data.fairHousing ?? null);
         trackEvent("content_generated", { content_type: contentType });
         // Refresh usage + saved-properties grid (server upserts history on every generate).
         void refreshUsage();
@@ -1729,6 +1740,34 @@ function AppDashboard() {
 
 
               <div ref={resultRef} className="mt-4 min-h-[400px]">
+                {fairHousingWarning && (
+                  <div
+                    className={`mb-4 rounded-lg border p-3 ${fairHousingWarning.flagged ? "border-amber-700/50 bg-amber-950/30" : "border-emerald-800/40 bg-emerald-950/20"}`}
+                    data-fair-housing-warning
+                    role="alert"
+                  >
+                    <p className={`text-sm font-semibold ${fairHousingWarning.flagged ? "text-amber-200" : "text-emerald-200"}`}>
+                      {fairHousingWarning.flagged
+                        ? "⚠ Fair Housing risk pattern detected — review before publishing"
+                        : "Fair Housing check: the first draft tripped the guardrail and was rewritten"}
+                    </p>
+                    {(fairHousingWarning.hits ?? []).length > 0 && (
+                      <ul className="mt-2 space-y-1.5">
+                        {(fairHousingWarning.hits ?? []).map((h) => (
+                          <li key={h.matched} className="text-xs leading-snug text-emerald-200/80">
+                            <span className="font-medium text-amber-200/90">{h.label}</span> — matched:{" "}
+                            <span className="rounded bg-black/40 px-1 py-0.5 font-mono text-[11px]">{h.matched}</span>
+                            <span className="block text-[11px] text-emerald-300/50">{h.note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="mt-2 text-[11px] leading-snug text-emerald-300/50">
+                      These matches are risk patterns, not regulatory text. A clean result does not mean the content is compliant —
+                      your broker and your state commission have final say.
+                    </p>
+                  </div>
+                )}
                 {isGenerating ? (
                   <div className="flex flex-col items-center justify-center py-20">
                     <div className="h-12 w-12 animate-pulse rounded-full bg-emerald-900/30" />
