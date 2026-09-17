@@ -1,4 +1,4 @@
-import { measureGlyphMetrics } from "/home/team/shared/site/src/lib/render";
+import { measureGlyphMetrics } from "../src/lib/render";
 import { readFile } from "node:fs/promises";
 
 const fonts: [string,string][] = [

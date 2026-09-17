@@ -120,8 +120,10 @@ if [ ! -f "$BASELINE" ]; then
 else
   # NEW = a file+code pair not in the baseline, or a higher count than baselined.
   # IMPROVED = fewer than baselined (fine; reported, not failed).
-  awk '
-    NR==FNR { base[$1" "$2] = $3; next }
+  # FILENAME comparison (not NR==FNR) so an EMPTY baseline file still compares —
+  # with NR==FNR an empty first file makes every current line look like baseline.
+  awk -v baseline_file="$BASELINE" '
+    FILENAME == baseline_file { base[$1" "$2] = $3; next }
     {
       k = $1" "$2
       if (!(k in base))            { print "  NEW:       " $0; new_errs = 1 }

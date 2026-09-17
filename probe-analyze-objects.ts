@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createElement as h } from "react";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
-import { analyzeTemplateRegions } from "/home/team/shared/site/src/lib/ai.ts";
+import { analyzeTemplateRegions } from "./src/lib/ai.ts";
 
 const outDir = "/home/team/shared/render-samples/analyze-template-objects";
 mkdirSync(outDir, { recursive: true });

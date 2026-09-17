@@ -1,6 +1,6 @@
 // Render the redesigned (after) branded no-template flyer + social for before/after.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { renderMarketingPng } from "/home/team/shared/site/src/lib/render.ts";
+import { renderMarketingPng } from "./src/lib/render.ts";
 
 const outDir = "/home/team/shared/render-samples/redesign-after";
 mkdirSync(outDir, { recursive: true });
