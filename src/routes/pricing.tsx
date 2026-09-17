@@ -4,6 +4,7 @@ import { Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
 import { startCheckout } from "~/lib/product-checkout";
+import { annualPriceDisplay, monthlyPriceDisplay } from "~/lib/pricing-display";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -20,8 +21,10 @@ export const Route = createFileRoute("/pricing")({
 
 /* --- Pricing plans (owner final: Starter $39 / Pro $79 / Team $199 monthly; annual = 7% off) ---
  * Each plan carries both a MONTHLY price and a YEARLY (pay-upfront full annual) price.
- * Annual = 93% of 12 × monthly, exact cents in Stripe; UI shows whole dollars + per-month equivalent:
- *   Starter $435/yr ($36/mo) · Pro $882/yr ($73/mo) · Team $2,221/yr ($185/mo)
+ * Amounts are NOT written here: both come from src/lib/pricing-display.ts, which reads the
+ * Stripe price record in src/lib/stripe-prices.ts. Annual = 93% of 12 × monthly, printed with
+ * its exact cents:
+ *   Starter $435.24/yr ($36.27/mo) · Pro $881.64/yr ($73.47/mo) · Team $2,220.84/yr ($185.07/mo)
  */
 type BillingCycle = "monthly" | "yearly";
 
@@ -30,13 +33,8 @@ const pricingPlans = [
     name: "Starter",
     description: "For individual agents getting started",
     ctaText: "Subscribe",
-    monthly: { price: "$39", period: "/mo", priceSub: undefined, priceLookupKey: "starter_monthly" as const },
-    yearly: {
-      price: "$435",
-      period: "/yr",
-      priceSub: "($36.27/mo, paid upfront) · save 7%",
-      priceLookupKey: "starter_annual" as const,
-    },
+    monthly: monthlyPriceDisplay("starter_monthly"),
+    yearly: annualPriceDisplay("starter_annual", "starter_monthly"),
     features: [
       { text: "Up to 5 listings/month", included: true },
       { text: "Basic templates", included: true },
@@ -51,13 +49,8 @@ const pricingPlans = [
     description: "For serious agents with growing businesses",
     highlighted: true,
     ctaText: "Subscribe",
-    monthly: { price: "$79", period: "/mo", priceSub: undefined, priceLookupKey: "pro" as const },
-    yearly: {
-      price: "$882",
-      period: "/yr",
-      priceSub: "($73.47/mo, paid upfront) · save 7%",
-      priceLookupKey: "pro_annual" as const,
-    },
+    monthly: monthlyPriceDisplay("pro"),
+    yearly: annualPriceDisplay("pro_annual", "pro"),
     features: [
       { text: "Up to 20 listings/month", included: true },
       { text: "All asset types", included: true },
@@ -71,13 +64,8 @@ const pricingPlans = [
     name: "Team",
     description: "For brokerages and teams",
     ctaText: "Subscribe",
-    monthly: { price: "$199", period: "/mo", priceSub: undefined, priceLookupKey: "team" as const },
-    yearly: {
-      price: "$2,221",
-      period: "/yr",
-      priceSub: "($185.07/mo, paid upfront) · save 7%",
-      priceLookupKey: "team_annual" as const,
-    },
+    monthly: monthlyPriceDisplay("team"),
+    yearly: annualPriceDisplay("team_annual", "team"),
     features: [
       { text: "Unlimited listings", included: true },
       { text: "Multi-agent seats", included: true },
@@ -88,6 +76,10 @@ const pricingPlans = [
     ],
   },
 ];
+
+/* The bottom CTA band always subscribes to Starter MONTHLY, whatever the cycle toggle says,
+ * so its label names that plan and its real price — it is not a trial of anything. */
+const STARTER_MONTHLY = monthlyPriceDisplay("starter_monthly");
 
 function PricingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -194,10 +186,11 @@ function PricingPage() {
             })}
           </div>
           <p className="mt-10 text-center text-sm text-emerald-300/40">
-            All plans start with a free trial — no credit card required.
             {billingCycle === "yearly"
-              ? " Yearly plans are billed once, up front, for the full year."
-              : " Prices are per month, billed monthly."}
+              ? "Yearly plans are billed once, up front, for the full year."
+              : "Prices are per month, billed monthly."}{" "}
+            Every plan is a paid subscription billed through Stripe — a payment card is
+            required at checkout. Cancel anytime.
           </p>
         </div>
       </section>
@@ -212,7 +205,7 @@ function PricingPage() {
             Ready to save hours on every listing?
           </h2>
           <p className="animate-on-scroll mt-4 text-lg text-emerald-200/70">
-            Join agents who use Relevate to create professional marketing materials in minutes.
+            Relevate turns each listing into professional marketing materials in minutes.
           </p>
           <div className="animate-on-scroll mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <button
@@ -220,7 +213,9 @@ function PricingPage() {
               disabled={checkoutLoading === "starter_monthly"}
               className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto disabled:opacity-60"
             >
-              {checkoutLoading === "starter_monthly" ? "Redirecting..." : "Start Your Free Trial"}
+              {checkoutLoading === "starter_monthly"
+                ? "Redirecting..."
+                : `Subscribe to Starter — ${STARTER_MONTHLY.price}${STARTER_MONTHLY.period}`}
             </button>
             <a
               href="/demo"
@@ -229,6 +224,19 @@ function PricingPage() {
               Schedule a Demo
             </a>
           </div>
+          <p className="animate-on-scroll mt-6 text-sm text-emerald-300/50">
+            Starter is {STARTER_MONTHLY.price}
+            {STARTER_MONTHLY.period}, billed monthly through Stripe until you cancel. Not
+            ready to subscribe?{" "}
+            <a href="/signup" className="underline hover:text-emerald-100">
+              Create a free account
+            </a>{" "}
+            or{" "}
+            <a href="/demo" className="underline hover:text-emerald-100">
+              book a demo
+            </a>
+            .
+          </p>
         </div>
       </section>
 
