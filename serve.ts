@@ -18,6 +18,7 @@ import type { User } from "./src/lib/auth";
 import { POST as stripeWebhookPost } from "./src/routes/api/webhooks/stripe";
 import Stripe from "stripe";
 import { renderMarketingPng, validateRenderRequest, eraseAllTemplateText } from "./src/lib/render";
+import { disclosureWarnings } from "./src/lib/advertising-rules";
 import { resolveRenderSuggestion } from "./src/lib/render-suggestions";
 import { captureDemoLead, validateDemoLead } from "./src/lib/leads";
 import { sendTransactionalEmail } from "./src/lib/email";
@@ -253,7 +254,10 @@ for (let attempt = 1; ; attempt++) {
             const parsed = validateRenderRequest(await req.json());
             if (!parsed.ok) return Response.json({ success: false, error: parsed.error }, { status: 400 });
             const imageDataUrl = await renderMarketingPng(parsed.data);
-            return Response.json({ success: true, imageDataUrl });
+            // Disclosure warnings (task 834b0e71): FL-missing-brokerage surfaces
+            // as a warning; CA licence renders come back as a confirmation. The
+            // image itself always renders — the UI decides how loudly to surface.
+            return Response.json({ success: true, imageDataUrl, warnings: disclosureWarnings(parsed.data) });
           } catch (error) {
             console.error("API /api/render error:", error);
             return Response.json({ success: false, error: "Failed to render PNG" }, { status: 500 });
