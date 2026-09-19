@@ -1,7 +1,7 @@
 // Probe: social-photo long/medium body-zone contrast AFTER the bsc scrim fix.
 import { readFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
-import { renderMarketingPng } from "/home/team/shared/site/src/lib/render.ts";
+import { renderMarketingPng } from "./src/lib/render.ts";
 
 const hero = `data:image/png;base64,${readFileSync("/home/team/shared/r5-probes/assets/hero-home.png").toString("base64")}`;
 const TAGS = "\n\n#JustListed #CharlestonRealEstate #OpenHouseSunday #NewHome #LowcountryLiving";
