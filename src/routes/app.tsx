@@ -368,7 +368,7 @@ function AppDashboard() {
   const [agentEmail, setAgentEmail] = useState("");
   const [agentBrokerage, setAgentBrokerage] = useState("");
   // Disclosure profile (task 834b0e71) — licence fields, jurisdiction, NAR
-  // declaration, EHO toggle. Persisted to localStorage so they auto-attach to
+  // declaration, EHO toggle. Supplied on every render so they auto-attach to
   // every future render in this browser. All user-supplied, never fabricated.
   const [agentLicense, setAgentLicense] = useState("");
   const [brokerName, setBrokerName] = useState("");
@@ -376,6 +376,9 @@ function AppDashboard() {
   const [jurisdiction, setJurisdiction] = useState("");
   const [narMember, setNarMember] = useState(false);
   const [ehoFooter, setEhoFooter] = useState(true);
+  // EHO house mark: OFF by default - the asset's provenance is unverified
+  // (provisional artwork); the legend TEXT footer is the verified part.
+  const [ehoMark, setEhoMark] = useState(false);
   // Compliance notices returned by /api/render (FL missing-brokerage warning,
   // CA licence confirmation) — surfaced next to the designed preview.
   const [renderWarnings, setRenderWarnings] = useState<{ level: "warning" | "info"; message: string }[]>([]);
@@ -785,6 +788,7 @@ function AppDashboard() {
         ...(brokerLicense.trim() ? { brokerLicense: brokerLicense.trim() } : {}),
         ...(narMember ? { narMember: true } : {}),
         ...(ehoFooter ? {} : { ehoFooter: false }),
+        ...(ehoMark ? { ehoMark: true } : {}),
       };
       // Native /api/render can be slow on a cold serverless function (the host's
       // upstream cutoff is ~30s). We bound the spinner with a client-side timeout,
@@ -893,7 +897,7 @@ function AppDashboard() {
       // never stick forever, even when an abort wouldn't propagate.
       setIsRendering(false);
     }
-  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, narMember, ehoFooter, generatedImage, templateDescription, suggestionStyle, brandedTemplate]);
+  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, narMember, ehoFooter, ehoMark, generatedImage, templateDescription, suggestionStyle, brandedTemplate]);
 
 
   // In-place editing of the native rendered flyer/social (NativeInlineEditor).
@@ -1563,10 +1567,14 @@ function AppDashboard() {
                         <input type="checkbox" checked={ehoFooter} onChange={(e) => setEhoFooter(e.target.checked)} className="accent-emerald-500" />
                         Equal Housing Opportunity footer (recommended)
                       </label>
+                      <label className="flex items-center gap-2 text-xs text-emerald-200/70">
+                        <input type="checkbox" checked={ehoMark} onChange={(e) => setEhoMark(e.target.checked)} className="accent-emerald-500" />
+                        EHO house mark (provisional artwork — provenance unverified; legend text is the verified part)
+                      </label>
                     </div>
                   </div>
                   <p className="text-xs text-emerald-300/40">
-                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office). Saved in this browser and reused on future renders.
+                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office).
                   </p>
                   <div>
                     <label className="block text-sm font-medium text-emerald-200/80">

@@ -342,7 +342,7 @@ export function validateRenderRequest(value: unknown): { ok: true; data: RenderR
   // template layer; empty disclosure fields render nothing).
   for (const key of ["brokerageName", "agentLicense", "brokerName", "brokerLicense"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 80)) return { ok: false, error: `${key} must be a short string` };
   if (raw.jurisdiction != null && (typeof raw.jurisdiction !== "string" || !/^[A-Za-z]{2}$/.test(raw.jurisdiction))) return { ok: false, error: "jurisdiction must be a 2-letter state code" };
-  for (const key of ["narMember", "ehoFooter"] as const) if (raw[key] != null && typeof raw[key] !== "boolean") return { ok: false, error: `${key} must be a boolean` };
+  for (const key of ["narMember", "ehoFooter", "ehoMark"] as const) if (raw[key] != null && typeof raw[key] !== "boolean") return { ok: false, error: `${key} must be a boolean` };
   if (raw.imageDataUrl != null && !validImage(raw.imageDataUrl)) return { ok: false, error: "imageDataUrl must be an image base64 data URL under 4 MB" };
   if (raw.templateImage != null && !validImage(raw.templateImage)) return { ok: false, error: "templateImage must be an image base64 data URL under 4 MB" };
   if (raw.templateImage != null) {
