@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Navigation, PricingCard, RelevateLockup } from "~/components";
+import { CheckoutHandoffDialog, Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
-import { startCheckout } from "~/lib/product-checkout";
+import { startCheckout, type CheckoutHandoff } from "~/lib/product-checkout";
 import { annualPriceDisplay, monthlyPriceDisplay } from "~/lib/pricing-display";
 
 export const Route = createFileRoute("/pricing")({
@@ -83,20 +83,40 @@ const STARTER_MONTHLY = monthlyPriceDisplay("starter_monthly");
 
 function PricingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  /* The plan key in ?plan= (used by the explicit cross-host handoff) picks the matching
+   * billing cycle, so a buyer who chose a yearly plan does not land on the monthly tab. */
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(() => {
+    if (typeof window === "undefined") return "monthly";
+    const plan = new URLSearchParams(window.location.search).get("plan");
+    return plan && plan.endsWith("_annual") ? "yearly" : "monthly";
+  });
+  const [handoff, setHandoff] = useState<CheckoutHandoff | null>(null);
+  const [handoffPlanLabel, setHandoffPlanLabel] = useState("");
   useEffect(() => {
     trackEvent("pricing_viewed");
   }, []);
 
-  async function handleSubscribe(priceLookupKey: string) {
+  async function handleSubscribe(priceLookupKey: string, planLabel: string) {
     setCheckoutLoading(priceLookupKey);
     try {
-      await startCheckout(priceLookupKey, {
+      const result = await startCheckout(priceLookupKey, {
         onAnalytics: () =>
           trackEvent("checkout_started", { plan: priceLookupKey, billing: billingCycle }),
       });
+      /* This host cannot take a payment: nothing navigated and nothing was charged. Show the
+       * visitor the destination host and let them decide — never redirect silently. */
+      if (result.outcome === "handoff") {
+        setHandoffPlanLabel(planLabel);
+        setHandoff(result);
+        trackEvent("checkout_handoff_shown", {
+          plan: priceLookupKey,
+          billing: billingCycle,
+          host: result.host,
+        });
+      }
     } catch (err: any) {
       alert(err.message || "Failed to start checkout. Please try again.");
+    } finally {
       setCheckoutLoading(null);
     }
   }
@@ -174,10 +194,15 @@ function PricingPage() {
                     priceSub={pricing.priceSub}
                     highlighted={plan.highlighted}
                     features={plan.features}
-                    onCtaClick={() => handleSubscribe(pricing.priceLookupKey)}
+                    onCtaClick={() =>
+                      handleSubscribe(
+                        pricing.priceLookupKey,
+                        `${plan.name} — ${pricing.price}${pricing.period}`,
+                      )
+                    }
                     ctaText={
                       checkoutLoading === pricing.priceLookupKey
-                        ? "Redirecting..."
+                        ? "Opening checkout…"
                         : plan.ctaText
                     }
                   />
@@ -209,12 +234,17 @@ function PricingPage() {
           </p>
           <div className="animate-on-scroll mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <button
-              onClick={() => handleSubscribe("starter_monthly")}
+              onClick={() =>
+                handleSubscribe(
+                  "starter_monthly",
+                  `Starter — ${STARTER_MONTHLY.price}${STARTER_MONTHLY.period}`,
+                )
+              }
               disabled={checkoutLoading === "starter_monthly"}
               className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto disabled:opacity-60"
             >
               {checkoutLoading === "starter_monthly"
-                ? "Redirecting..."
+                ? "Opening checkout…"
                 : `Subscribe to Starter — ${STARTER_MONTHLY.price}${STARTER_MONTHLY.period}`}
             </button>
             <a
@@ -271,6 +301,14 @@ function PricingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Explicit, labelled handoff when this host cannot start a payment (never a silent
+        * cross-host redirect). Cancelling leaves the visitor exactly where they were. */}
+      <CheckoutHandoffDialog
+        handoff={handoff}
+        planLabel={handoffPlanLabel}
+        onCancel={() => setHandoff(null)}
+      />
     </div>
   );
 }
