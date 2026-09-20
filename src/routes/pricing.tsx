@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckoutHandoffDialog, Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
-import { startCheckout, type CheckoutHandoff } from "~/lib/product-checkout";
+import { readCheckoutIntent, startCheckout, type CheckoutHandoff } from "~/lib/product-checkout";
 import { annualPriceDisplay, monthlyPriceDisplay } from "~/lib/pricing-display";
 
 export const Route = createFileRoute("/pricing")({
@@ -81,19 +81,42 @@ const pricingPlans = [
  * so its label names that plan and its real price — it is not a trial of anything. */
 const STARTER_MONTHLY = monthlyPriceDisplay("starter_monthly");
 
+/** Human label for a plan key, e.g. "Starter (yearly)" — used by the handoff banner. */
+function planLabelForPriceKey(priceLookupKey: string): string {
+  const plan = pricingPlans.find(
+    (p) =>
+      p.monthly.priceLookupKey === priceLookupKey ||
+      p.yearly.priceLookupKey === priceLookupKey,
+  );
+  const cycle = priceLookupKey.endsWith("_annual") ? "yearly" : "monthly";
+  return plan ? `${plan.name} (${cycle})` : priceLookupKey;
+}
+
 function PricingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  /* The plan key in ?plan= (used by the explicit cross-host handoff) picks the matching
-   * billing cycle, so a buyer who chose a yearly plan does not land on the monthly tab. */
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(() => {
-    if (typeof window === "undefined") return "monthly";
-    const plan = new URLSearchParams(window.location.search).get("plan");
-    return plan && plan.endsWith("_annual") ? "yearly" : "monthly";
-  });
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [handoff, setHandoff] = useState<CheckoutHandoff | null>(null);
   const [handoffPlanLabel, setHandoffPlanLabel] = useState("");
+  /** Set while this page is continuing a checkout the buyer confirmed on the other host. */
+  const [continuing, setContinuing] = useState<string | null>(null);
+  const autoStarted = useRef(false);
+
   useEffect(() => {
     trackEvent("pricing_viewed");
+    /* A handoff from the other host arrives as ?plan=<key>&start=1: select the matching
+     * billing cycle and begin checkout here, so the buyer does not have to find the same
+     * plan and click Subscribe a second time. Read in an effect (not during render) so the
+     * server and client markup stay identical. */
+    const intent = readCheckoutIntent(window.location.search);
+    if (intent.plan) {
+      setBillingCycle(intent.plan.endsWith("_annual") ? "yearly" : "monthly");
+    }
+    if (intent.autoStart && intent.plan && !autoStarted.current) {
+      autoStarted.current = true;
+      const label = planLabelForPriceKey(intent.plan);
+      setContinuing(label);
+      void handleSubscribe(intent.plan, label);
+    }
   }, []);
 
   async function handleSubscribe(priceLookupKey: string, planLabel: string) {
@@ -118,12 +141,21 @@ function PricingPage() {
       alert(err.message || "Failed to start checkout. Please try again.");
     } finally {
       setCheckoutLoading(null);
+      setContinuing(null);
     }
   }
 
   return (
     <div className="min-h-dvh bg-[#0a1a0a] font-['Inter',system-ui,sans-serif]">
       <Navigation />
+      {/* Shown only while this page is finishing a checkout the buyer confirmed elsewhere. */}
+      {continuing && (
+        <div className="border-b border-emerald-700/40 bg-emerald-950/90 px-4 py-3 text-center text-sm text-emerald-100">
+          Continuing your checkout for{" "}
+          <span className="font-semibold">{continuing}</span>… If nothing happens in a few
+          seconds, choose the plan below.
+        </div>
+      )}
       {/* ===== Page header ===== */}
       <section className="relative overflow-hidden px-6 pb-16 pt-24 sm:pt-32">
         <div className="absolute inset-0 wood-texture-dark opacity-10" />

@@ -47,3 +47,40 @@ bash scripts/preflight.sh --update-baseline
 
 Never hand-edit `scripts/tsc-baseline.txt`, and never use it to silence a NEW
 error — new errors are the signal the gate exists to catch.
+
+## Checkout: which host can take a payment, and how to change it
+
+Relevate is deployed to two live hosts, and only one of them can take money today.
+
+| Host | Can it charge? | Why |
+| --- | --- | --- |
+| `relevatelistingassistant.ctonew.app` (platform host — the branded domain) | **No** | `POST /api/create-checkout-session` answers `500 {"error":"STRIPE_SECRET_KEY is not configured"}`. Its server layer is also older than this repository: it rejects `starter_annual` / `pro_annual` / `team_annual` with `400 Invalid priceLookupKey … Must be one of: starter_monthly, pro, team`. |
+| `site-gray-five-32.vercel.app` (product host — Vercel) | **Yes** | All six plan keys return live Stripe Checkout Sessions (`POST /api/create-checkout-session` → `200` → `https://checkout.stripe.com/…`). It has its own `STRIPE_SECRET_KEY`. |
+
+### How a buyer completes a purchase today (no code change needed)
+1. On `/pricing` — on either host — click **Subscribe** on the plan they want.
+2. If that host can take a payment, checkout starts in place and they land on Stripe's page.
+3. If it cannot, a confirm step names the destination host and states that nothing has been charged. **Continue** opens the product host with the same plan already selected, and checkout begins there.
+
+Nothing leaves the page until the buyer clicks Continue, and no host ever moves them silently.
+
+### How to make the branded domain charge directly
+1. **Set `STRIPE_SECRET_KEY` for this site** (owner: Settings → Secrets). Saving a secret restarts
+   the live site, which removes the `500`; the three monthly keys then start checkout in place on
+   the branded domain.
+2. **Have the platform host's server routes rebuilt from this repository.** They are older than the
+   seeded baseline (they reject keys that have been in `src/lib/price-keys.ts` since the first
+   commit), and publishing the site has not updated them — a publish swaps the client build, not
+   that API layer. Until it is rebuilt, the annual keys keep answering `400` there and annual plans
+   keep going through the handoff step.
+3. **Decide where the money lands.** Sessions created by the Vercel host do not exist in the
+   connected Stripe account (reading one back returns `resource_missing`), so that revenue cannot be
+   seen or reconciled by this team. Pointing the branded domain at the connected account's key is
+   what makes revenue land somewhere the business can see it.
+
+### Rules this area must keep true
+- No host may move a buyer to another hostname without naming the destination and getting a click
+  first — `bun scripts/check-checkout-handoff.ts` fails the build if that regresses.
+- Plan keys live only in `src/lib/price-keys.ts`; the checkout module carries no copy of them.
+- Never claim the branded domain can take a payment while `STRIPE_SECRET_KEY` is unset there: the
+  endpoint answers `500`.

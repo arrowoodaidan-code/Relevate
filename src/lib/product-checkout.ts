@@ -32,9 +32,30 @@ export const CANONICAL_PRODUCT_URL = "https://site-gray-five-32.vercel.app";
 /** Hostname of the canonical product deployment (used for display and self-handoff guards). */
 export const CANONICAL_PRODUCT_HOST = "site-gray-five-32.vercel.app";
 
-/** Where a buyer continues when the current host cannot start a payment. */
+/**
+ * Where a buyer continues when the current host cannot start a payment.
+ *
+ * `plan`  picks the same plan (and billing cycle) on the destination.
+ * `start` records that the buyer already confirmed the handoff, so the destination may begin
+ *         checkout itself instead of asking them to find the same plan and click again.
+ */
 export function checkoutHandoffUrl(priceLookupKey: string): string {
-  return `${CANONICAL_PRODUCT_URL}/pricing?plan=${encodeURIComponent(priceLookupKey)}`;
+  const params = new URLSearchParams({ plan: priceLookupKey, start: "1" });
+  return `${CANONICAL_PRODUCT_URL}/pricing?${params.toString()}`;
+}
+
+/**
+ * Read the checkout intent carried by a handoff URL (`?plan=<key>&start=1`).
+ * Returns `plan: null` for anything that is not a known price key, so a hand-edited or stale
+ * link can never start checkout for a plan that does not exist.
+ */
+export function readCheckoutIntent(search: string): { plan: string | null; autoStart: boolean } {
+  const params = new URLSearchParams(search);
+  const plan = params.get("plan");
+  return {
+    plan: plan && isValidPriceKey(plan) ? plan : null,
+    autoStart: params.get("start") === "1",
+  };
 }
 
 /**

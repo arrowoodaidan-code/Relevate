@@ -87,7 +87,40 @@ check(
   "the confirmation makes no guarantee claim about the other host",
 );
 
-/* 5. The Vercel host alias is declared in exactly one place. */
+/* 5. The handoff carries the buyer's choice, and the destination resumes it. */
+check(
+  /start:\s*"1"/.test(checkout),
+  "the handoff URL records that the buyer confirmed the handoff",
+);
+check(
+  /export function readCheckoutIntent/.test(checkout),
+  "readCheckoutIntent is exported so the destination can read plan + confirmation",
+);
+check(
+  /readCheckoutIntent/.test(pricing) && /intent\.autoStart/.test(pricing),
+  "the destination starts checkout itself only when the buyer confirmed a handoff",
+);
+check(
+  /isValidPriceKey\(plan\)/.test(checkout),
+  "readCheckoutIntent refuses a plan key that is not in price-keys.ts",
+);
+check(
+  /continuing/.test(pricing),
+  "the destination tells the buyer it is continuing their checkout",
+);
+
+/* 6. The README answers 'how do I get this to work' for the next reader. */
+const readme = read("README.md");
+check(
+  /which host can take a payment/i.test(readme),
+  "README documents which host can charge and how to change it",
+);
+check(
+  /STRIPE_SECRET_KEY/.test(readme) && /server routes rebuilt/i.test(readme),
+  "README names the two actions that make the branded domain charge directly",
+);
+
+/* 7. The Vercel host alias is declared in exactly one place. */
 const aliasHits = [checkout, pricing, home, dialog].filter((s) => /site-gray-five-32/.test(s));
 check(
   aliasHits.length === 1 && aliasHits[0] === checkout,
