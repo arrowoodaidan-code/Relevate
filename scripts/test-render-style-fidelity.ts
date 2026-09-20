@@ -34,9 +34,9 @@
  * Usage: bun scripts/test-render-style-fidelity.ts   (exit 0 = all green)
  */
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
-import { matchRegionTypography, applyTextTransform, resolveRegionTypography } from "/home/team/shared/site/src/lib/font-match.ts";
-import { renderMarketingPng, validateRenderRequest, sampleRegionBackgrounds } from "/home/team/shared/site/src/lib/render.ts";
-import { Resvg } from "/home/team/shared/site/node_modules/@resvg/resvg-js/index.js";
+import { matchRegionTypography, applyTextTransform, resolveRegionTypography } from "../src/lib/font-match.ts";
+import { renderMarketingPng, validateRenderRequest, sampleRegionBackgrounds } from "../src/lib/render.ts";
+import { Resvg } from "@resvg/resvg-js";
 
 const dir = "/home/team/shared/render-samples";
 const asset = async (p: string) => `data:image/png;base64,${(await readFile(p)).toString("base64")}`;

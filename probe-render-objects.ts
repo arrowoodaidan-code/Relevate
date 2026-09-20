@@ -1,7 +1,7 @@
 // Smoke: render a set of FINER-GRAINED multi-image regions through the real
 // compositor (renderMarketingPng) to prove #4 — per-object regions still work.
 import { readFileSync, writeFileSync } from "node:fs";
-import { renderMarketingPng } from "/home/team/shared/site/src/lib/render.ts";
+import { renderMarketingPng } from "./src/lib/render.ts";
 
 const outDir = "/home/team/shared/render-samples/analyze-template-objects";
 const { regions } = JSON.parse(readFileSync(`${outDir}/regions.json`, "utf8"));
