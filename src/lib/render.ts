@@ -8,6 +8,7 @@ import { deflateSync } from "node:zlib";
 import { createElement as h } from "react";
 import type { TemplateRegion } from "./prompts";
 import { marketingTemplate, type RenderTemplateInput, type RenderType, type TemplateReplicaInput, type InkBox } from "./render-templates";
+import { stripBracketPlaceholders } from "./placeholder-guard";
 
 export interface RenderRequest extends Omit<RenderTemplateInput, "templateReplica"> {
   type: RenderType;
@@ -355,6 +356,23 @@ export function validateRenderRequest(value: unknown): { ok: true; data: RenderR
       for (const [id, image] of Object.entries(raw.regionImages as Record<string, unknown>)) if (!regions.some((region) => region.id === id && region.kind === "image") || !validImage(image)) return { ok: false, error: "regionImages contains an invalid image-region value" };
     }
     for (const key of ["templateWidth", "templateHeight"] as const) if (raw[key] != null && (!Number.isFinite(Number(raw[key])) || Number(raw[key]) < 64 || Number(raw[key]) > 10000)) return { ok: false, error: `${key} must be a valid source-image dimension` };
+  }
+  // Bracketed-placeholder guard (task fa4a26ae): strip literal template
+  // placeholders ("[Your Phone Number]", "[Agent Name]", …) from every text
+  // surface BEFORE they reach a render, so no upstream change (model output,
+  // prompt edit, pasted template fill) can bake them into a deliverable PNG
+  // again. Stripping is line-aware and invents nothing (see
+  // src/lib/placeholder-guard.ts): placeholder-only lines disappear, inline
+  // copy keeps its surrounding words, and text without "[" is returned
+  // byte-identical. jurisdiction is regex-validated (2 letters) and the
+  // remaining fields are booleans/images, so they are not scrubbed.
+  for (const key of ["body", "title", "agentName", "brandStyle", "price", "beds", "baths", "sqft", "agentPhone", "brokerageName", "agentLicense", "brokerName", "brokerLicense"] as const) {
+    if (typeof raw[key] === "string") raw[key] = stripBracketPlaceholders(raw[key] as string);
+  }
+  if (raw.regionText != null && typeof raw.regionText === "object" && !Array.isArray(raw.regionText)) {
+    for (const [id, text] of Object.entries(raw.regionText as Record<string, string>)) {
+      if (typeof text === "string") (raw.regionText as Record<string, string>)[id] = stripBracketPlaceholders(text);
+    }
   }
   return { ok: true, data: raw as unknown as RenderRequest };
 }

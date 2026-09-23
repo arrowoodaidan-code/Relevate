@@ -196,6 +196,8 @@ function buildApiDetails(
   agentName: string,
   logoImage: string | null,
   agentPhoto: string | null,
+  agentPhone: string,
+  agentEmail: string,
 ) {
   const priceNum = Number.parseFloat(form.price.replace(/[^0-9.]/g, ""));
   const sqftNum = Number.parseInt(form.sqft.replace(/[^0-9]/g, ""), 10);
@@ -217,6 +219,10 @@ function buildApiDetails(
     ...(agentName.trim() ? { agentName: agentName.trim() } : {}),
     ...(logoImage ? { logoImage } : {}),
     ...(agentPhoto ? { agentPhoto } : {}),
+    // Real contact details for the prompt (task fa4a26ae) — the model must
+    // use these verbatim in contact sections instead of inventing brackets.
+    ...(agentPhone.trim() ? { agentPhone: agentPhone.trim() } : {}),
+    ...(agentEmail.trim() ? { agentEmail: agentEmail.trim() } : {}),
   };
 }
 
@@ -592,7 +598,7 @@ function AppDashboard() {
     setActiveTab("result");
 
     try {
-      const apiDetails = buildApiDetails(details, templateDescription, propertyPhotos, agentName, logoImage, agentPhoto);
+      const apiDetails = buildApiDetails(details, templateDescription, propertyPhotos, agentName, logoImage, agentPhoto, agentPhone, agentEmail);
       const apiContentType = mapContentType(contentType);
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -616,7 +622,7 @@ function AppDashboard() {
     } finally {
       setIsGenerating(false);
     }
-  }, [details, contentType, propertyPhotos, agentName, logoImage, agentPhoto]);
+  }, [details, contentType, propertyPhotos, agentName, logoImage, agentPhoto, agentPhone, agentEmail]);
 
   const handleReloadSaved = useCallback(async (id: string) => {
     setSavedPanelMsg(null);
