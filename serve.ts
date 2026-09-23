@@ -5,10 +5,10 @@
 // `bun run publish`.
 //
 // Port: process.env.PORT if set to a valid port number, otherwise the pinned
-// default 3000 (the reverse proxy targets 0.0.0.0:3000). This server NEVER kills
-// another process to take the port: publish.sh stops the previous instance it
-// started (via .run/server.pid) before launching a new one, and if the port is
-// held by anything else this server fails loudly instead of taking it.
+// default 3000 (the reverse proxy targets 0.0.0.0:3000). On a busy port the
+// server retries, then frees the port as a last-publish-wins fallback (an old
+// instance left holding :3000 by a superseded deploy must not keep serving),
+// and only fails loudly if freeing AND rebinding both fail.
 import handler from "./dist/server/server.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { analyzeTemplateRegions, generateContent, generateImage, validateImageDataUrl, validatePropertyImages, validateAgentImages, refineContent } from "./src/lib/ai";
@@ -99,12 +99,16 @@ async function authenticate(req: Request): Promise<User | null> {
   return result?.user ?? null;
 }
 
-// Bind the port without ever killing another process. A short retry sequence
-// covers the raced-restart window (a previous instance of this same server
-// shutting down while we start; publish.sh stops that instance via its pidfile
-// before launching us). If the port is still busy after the retries, the
-// previous holder is NOT ours to kill — fail clearly and let the operator
-// pick another PORT.
+// Bind the port, last publish wins. The polite path is publish.sh stopping the
+// instance it started (via .run/server.pid) before launching us; a short retry
+// sequence covers the raced-restart window. If the port is STILL busy — e.g. an
+// old server instance left holding it by a superseded deploy, which is exactly
+// the stale-/api class observed on the live host — freeing it is the fallback:
+// a publish must never leave the previous build serving while the new one dies.
+// Only if freeing AND rebinding both fail does this process give up, loudly.
+const freePortScript =
+  `pids=$(lsof -t -iTCP:${String(PORT)} -sTCP:LISTEN 2>/dev/null || true); ` +
+  `if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi`;
 for (let attempt = 1; ; attempt++) {
   try {
     Bun.serve({
@@ -1027,13 +1031,19 @@ for (let attempt = 1; ; attempt++) {
     });
     break;
   } catch (err) {
-    if (attempt >= 5) {
+    if (attempt === 5) {
+      console.warn(
+        `[team-site] port ${String(PORT)} still busy after 5 tries — freeing it (last publish wins). Processes holding ${String(PORT)} will be stopped.`,
+      );
+      await Bun.$`sudo sh -c ${freePortScript}`.nothrow();
+      await Bun.sleep(400);
+      continue;
+    }
+    if (attempt >= 15) {
       console.error(
-        `FATAL: cannot bind http://${HOST}:${String(PORT)} — ` +
+        `FATAL: cannot bind http://${HOST}:${String(PORT)} even after freeing the port — ` +
           `${err instanceof Error ? err.message : String(err)}. ` +
-          `Another process is probably listening on this port and this server ` +
-          `does not kill processes it did not start. Free the port yourself or ` +
-          `start on another one: PORT=<port> bun serve.ts`,
+          `Start on a different port instead: PORT=<port> bun serve.ts`,
       );
       process.exit(1);
     }
