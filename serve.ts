@@ -666,6 +666,7 @@ for (let attempt = 1; ; attempt++) {
                 content: result.content,
                 contentType,
                 source: result.source,
+                ...(result.fairHousing ? { fairHousing: result.fairHousing } : {}),
                 ...(savedPropertyId ? { savedPropertyId } : {}),
               },
             });
@@ -765,15 +766,12 @@ for (let attempt = 1; ; attempt++) {
               ...(bodyImage ? { templateImage: bodyImage } : {}),
             };
 
-            const imageDataUrl = await generateImage(
+            const { imageDataUrl, fairHousing: imageFairHousing } = await generateImage(
               contentType as ContentType,
               mergedDetails as PropertyDetails,
             );
 
-            return Response.json({
-              success: true,
-              imageDataUrl,
-            });
+            return Response.json({ success: true, imageDataUrl, ...(imageFairHousing ? { fairHousing: imageFairHousing } : {}) });
           } catch (error: any) {
             console.error("API /api/generate-image error:", error);
             return Response.json(
@@ -839,16 +837,13 @@ for (let attempt = 1; ; attempt++) {
               );
             }
 
-            const revised = await refineContent(
+            const { revised, fairHousing: refineFairHousing } = await refineContent(
               contentType as ContentType,
               currentContent,
               instruction,
             );
 
-            return Response.json({
-              success: true,
-              content: revised,
-            });
+            return Response.json({ success: true, content: revised, ...(refineFairHousing ? { fairHousing: refineFairHousing } : {}) });
           } catch (error) {
             console.error("API /api/refine error:", error);
             return Response.json(

@@ -108,6 +108,11 @@ export interface PromptTemplate {
   userPrompt: (details: PropertyDetails) => string;
 }
 
+import {
+  FAIR_HOUSING_IMAGE_BLOCK,
+  FAIR_HOUSING_SYSTEM_BLOCK,
+} from "./fair-housing";
+
 const toneInstructions: Record<Tone, string> = {
   luxury:
     "Use sophisticated, elevated language. Emphasize exclusivity, premium finishes, and architectural distinction. The tone should be aspirational and refined.",
@@ -216,7 +221,7 @@ Description: ${details.description}
 
 Format as a single-paragraph summary (under 150 words) that covers:
 - What makes this property unique
-- The ideal buyer persona for this home
+- What buyer needs this property fits based on its physical and financial characteristics only — never target or describe a demographic group
 - Key selling points organized by priority
 - Why it's priced where it is
 
@@ -235,7 +240,9 @@ export function buildPrompt(
   if (!template) {
     throw new Error(`Unknown content type: ${contentType}`);
   }
-  let systemPrompt = template.systemPrompt;
+  // Fair Housing guardrail: appended LAST so it overrides tone/persona and
+  // any "ideal buyer" instruction in the template above (42 USC 3604(c)).
+  let systemPrompt = template.systemPrompt + FAIR_HOUSING_SYSTEM_BLOCK;
   let userPrompt = template.userPrompt(details);
 
   // Weave template/brand instructions into the prompts
@@ -347,6 +354,11 @@ export function buildImagePrompt(
   if (details.templateDescription) {
     prompt += ` Incorporate this brand aesthetic: ${details.templateDescription}.`;
   }
+
+  // Fair Housing guardrail for imagery: 100.75 explicitly covers
+  // photographs/illustrations/symbols, so the image prompt carries the same
+  // restriction as the copy (appended last so it wins).
+  prompt += FAIR_HOUSING_IMAGE_BLOCK;
 
   return prompt;
 }
