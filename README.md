@@ -48,42 +48,50 @@ bash scripts/preflight.sh --update-baseline
 Never hand-edit `scripts/tsc-baseline.txt`, and never use it to silence a NEW
 error — new errors are the signal the gate exists to catch.
 
-## Checkout: which host can take a payment, and how to change it
+## Checkout: where a buyer pays, and where they land afterwards
 
-Relevate is deployed to two live hosts, and only one of them can take money today.
+Relevate publishes on the branded domain (`relevatelistingassistant.ctonew.app`), and the same
+codebase can also be deployed to a Vercel host. **Only the host the buyer is already on takes the
+money.** No CTA moves a buyer to another hostname to pay: a payment taken on a deployment this team
+cannot see is money we cannot reconcile, which is worse than no payment at all.
 
-| Host | Can it charge? | Why |
-| --- | --- | --- |
-| `relevatelistingassistant.ctonew.app` (platform host — the branded domain) | **No** | `POST /api/create-checkout-session` answers `500 {"error":"STRIPE_SECRET_KEY is not configured"}`. Its server layer is also older than this repository: it rejects `starter_annual` / `pro_annual` / `team_annual` with `400 Invalid priceLookupKey … Must be one of: starter_monthly, pro, team`. |
-| `site-gray-five-32.vercel.app` (product host — Vercel) | **Yes** | All six plan keys return live Stripe Checkout Sessions (`POST /api/create-checkout-session` → `200` → `https://checkout.stripe.com/…`). It has its own `STRIPE_SECRET_KEY`. |
+### Post-payment redirect — fixed 2026-09-23 (P0)
 
-### How a buyer completes a purchase today (no code change needed)
-1. On `/pricing` — on either host — click **Subscribe** on the plan they want.
-2. If that host can take a payment, checkout starts in place and they land on Stripe's page.
-3. If it cannot, a confirm step names the destination host and states that nothing has been charged. **Continue** opens the product host with the same plan already selected, and checkout begins there.
+A live session created on the branded domain came back with `success_url`/`cancel_url` on
+`ip-10-110-103-223.us-west-2.prod.aws.beamlit.net` — an internal hostname with no public DNS record
+— because the endpoint preferred `process.env.VERCEL_URL`. A paying customer would have been sent to
+a page that cannot load. Resolution now lives in `src/lib/public-url.ts`, in this order:
 
-Nothing leaves the page until the buyer clicks Continue, and no host ever moves them silently.
+1. an explicitly configured public base URL — `PUBLIC_APP_URL`, `APP_BASE_URL` or `SITE_BASE_URL`;
+2. the host the request itself arrived on (`x-forwarded-host`, else `Host`) — the session is created
+   on the host the buyer is using, so the two always agree;
+3. platform hostnames (`VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL`), **only** if they pass the
+   public-hostname test;
+4. otherwise **nothing**: `create-checkout-session` throws *before* creating a session, so no money
+   is taken and no customer is stranded on a dead page.
 
-### How to make the branded domain charge directly
-1. **Set `STRIPE_SECRET_KEY` for this site** (owner: Settings → Secrets). Saving a secret restarts
-   the live site, which removes the `500`; the three monthly keys then start checkout in place on
-   the branded domain.
-2. **Have the platform host's server routes rebuilt from this repository.** They are older than the
-   seeded baseline (they reject keys that have been in `src/lib/price-keys.ts` since the first
-   commit), and publishing the site has not updated them — a publish swaps the client build, not
-   that API layer. Until it is rebuilt, the annual keys keep answering `400` there and annual plans
-   keep going through the handoff step.
-3. **Decide where the money lands.** Sessions created by the Vercel host do not exist in the
-   connected Stripe account (reading one back returns `resource_missing`), so that revenue cannot be
-   seen or reconciled by this team. Pointing the branded domain at the connected account's key is
-   what makes revenue land somewhere the business can see it.
+Internal hostnames are rejected: IP literals, `localhost`, single-label names,
+`.internal`/`.local`/`.svc`, and IP-encoded machine names such as `ip-10-110-103-223.…`. Setting
+`PUBLIC_APP_URL` to the site's public address makes resolution deterministic and is the recommended
+configuration.
+
+### When a host cannot start a payment
+
+The CTA asks the host the buyer is on. On failure **nothing navigates and nothing is charged**: an
+in-place notice states the reason and — when an *annual* key is the problem (the branded host's
+server layer is older than this repository and rejects `starter_annual`/`pro_annual`/`team_annual`
+with HTTP 400) — offers a one-click retry on the same host with the monthly equivalent. The buyer is
+never sent to another host to pay.
 
 ### Rules this area must keep true
-- No host may move a buyer to another hostname without naming the destination and getting a click
-  first — `bun scripts/check-checkout-handoff.ts` fails the build if that regresses.
-- Plan keys live only in `src/lib/price-keys.ts`; the checkout module carries no copy of them.
-- Never claim the branded domain can take a payment while `STRIPE_SECRET_KEY` is unset there: the
-  endpoint answers `500`.
+
+- The only navigation is to the Stripe URL this host returned: no assignment of a literal or
+  cross-host URL to `window.location`.
+- No hostname of another deployment may appear in `src/` as a destination (naming one in a comment
+  that explains the history is fine).
+- Every generated `success_url`/`cancel_url` must be a public hostname. `bun scripts/check-checkout-safety.ts`
+  (36 checks; the resolver itself is executed, not pattern-matched) fails the build if that regresses.
+- Never claim a host can take a payment while `STRIPE_SECRET_KEY` is unset there.
 
 ## Analytics: intentionally off
 

@@ -16,6 +16,7 @@ bunx tsc --noEmit                     # must stay at baseline (0 NEW errors)
 bun run build                         # exit 0
 bun scripts/check-no-vendor-analytics.ts  # 15/15 — no third-party analytics connection (run AFTER the build so dist/ is covered)
 bun scripts/check-no-committed-secrets.ts   # no secret in any tracked file (env files are local only)
+bun scripts/check-checkout-safety.ts       # 36/36 — public redirect URLs + no cross-host routing
 
 # 3. Deploy + post-deploy verification
 bash build-vercel.sh && bunx vercel deploy --prebuilt --prod --yes   # SE only

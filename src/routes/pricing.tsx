@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { CheckoutHandoffDialog, Navigation, PricingCard, RelevateLockup } from "~/components";
+import { CheckoutUnavailableDialog, Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
-import { readCheckoutIntent, startCheckout, type CheckoutHandoff } from "~/lib/product-checkout";
+import { readCheckoutIntent, startCheckout, type CheckoutUnavailable } from "~/lib/product-checkout";
 import { annualPriceDisplay, monthlyPriceDisplay } from "~/lib/pricing-display";
 
 export const Route = createFileRoute("/pricing")({
@@ -95,8 +95,8 @@ function planLabelForPriceKey(priceLookupKey: string): string {
 function PricingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
-  const [handoff, setHandoff] = useState<CheckoutHandoff | null>(null);
-  const [handoffPlanLabel, setHandoffPlanLabel] = useState("");
+  const [unavailable, setUnavailable] = useState<CheckoutUnavailable | null>(null);
+  const [checkoutRetrying, setCheckoutRetrying] = useState(false);
   /** Set while this page is continuing a checkout the buyer confirmed on the other host. */
   const [continuing, setContinuing] = useState<string | null>(null);
   const autoStarted = useRef(false);
@@ -119,22 +119,20 @@ function PricingPage() {
     }
   }, []);
 
-  async function handleSubscribe(priceLookupKey: string, planLabel: string) {
+  async function handleSubscribe(priceLookupKey: string, _planLabel: string) {
     setCheckoutLoading(priceLookupKey);
     try {
       const result = await startCheckout(priceLookupKey, {
         onAnalytics: () =>
           trackEvent("checkout_started", { plan: priceLookupKey, billing: billingCycle }),
       });
-      /* This host cannot take a payment: nothing navigated and nothing was charged. Show the
-       * visitor the destination host and let them decide — never redirect silently. */
-      if (result.outcome === "handoff") {
-        setHandoffPlanLabel(planLabel);
-        setHandoff(result);
-        trackEvent("checkout_handoff_shown", {
+      /* This host cannot take a payment: nothing navigated and nothing was charged. Say so in
+       * place — a buyer is never routed to another host to pay (see src/lib/product-checkout.ts). */
+      if (result.outcome === "unavailable") {
+        setUnavailable(result);
+        trackEvent("checkout_unavailable_shown", {
           plan: priceLookupKey,
           billing: billingCycle,
-          host: result.host,
         });
       }
     } catch (err: any) {
@@ -334,12 +332,18 @@ function PricingPage() {
         </div>
       </footer>
 
-      {/* Explicit, labelled handoff when this host cannot start a payment (never a silent
-        * cross-host redirect). Cancelling leaves the visitor exactly where they were. */}
-      <CheckoutHandoffDialog
-        handoff={handoff}
-        planLabel={handoffPlanLabel}
-        onCancel={() => setHandoff(null)}
+      {/* In-place notice when this host cannot start a payment. Nothing navigates, nothing is
+        * charged, and the visitor is never sent to another host to pay. Closing leaves them
+        * exactly where they were. */}
+      <CheckoutUnavailableDialog
+        unavailable={unavailable}
+        retrying={checkoutRetrying}
+        onClose={() => setUnavailable(null)}
+        onRetry={(key, label) => {
+          setUnavailable(null);
+          setCheckoutRetrying(true);
+          void handleSubscribe(key, label).finally(() => setCheckoutRetrying(false));
+        }}
       />
     </div>
   );
