@@ -16,7 +16,7 @@
  * emitted brackets by construction.
  */
 import { stripBracketPlaceholders, containsBracketPlaceholder } from "../src/lib/placeholder-guard";
-import { validateRenderRequest } from "../src/lib/render";
+import { validateRenderRequest, renderMarketingPng } from "../src/lib/render";
 import { generateContent } from "../src/lib/ai";
 
 delete process.env.DATABASE_URL;
@@ -53,26 +53,52 @@ check("unclosed bracket is not over-eaten",
 check("overlong bracket token (>80 inner chars) left alone",
   stripBracketPlaceholders("x [" + "y".repeat(90) + "] z").includes("y".repeat(90)));
 
-// ---- 2) Render guard (the layer that bakes text into the deliverable PNG) ----
-const parsed = validateRenderRequest({
+// ---- 2) Render boundary (the layer that bakes text into the deliverable PNG) ----
+// Lead direction: REFUSE at the render boundary — fail loudly (no render at
+// all) rather than print a bracket on a finished flyer. The asserted contract
+// is "real details or nothing": a clean request renders the agent's real
+// details verbatim; a placeholder-bearing request renders NOTHING (the
+// validator rejects it with an error naming the field and token).
+const refused = validateRenderRequest({
   type: "flyer",
   title: "OPEN HOUSE",
   body: qaBody,
   agentName: "Neil Monaghan",
   agentPhone: "(512) 555-0147",
 });
-check("validateRenderRequest still accepts the payload (strip, not refuse)", parsed.ok);
-if (parsed.ok) {
-  check("render guard: body carries no bracket tokens",
-    !/\[[^[\]\n]{1,80}\]/.test(parsed.data.body), JSON.stringify(parsed.data.body));
-  check("render guard: real agent content untouched",
-    parsed.data.body.includes("Neil Monaghan")
-      && parsed.data.body.includes("Let's make your dream a reality!"));
-  check("render guard: placeholder-only lines dropped cleanly",
-    parsed.data.body
-      === "For more information or to RSVP, contact:\nNeil Monaghan\nLet's make your dream a reality!");
-  check("render guard: short fields also scrubbed",
-    !/\[/.test([parsed.data.title, parsed.data.agentName, parsed.data.agentPhone].filter(Boolean).join("|")));
+check("render boundary REFUSES the QA defect payload (no data, no render)", !refused.ok);
+check("refusal error names the field and the first offending token",
+  !refused.ok && refused.error.includes("body") && refused.error.includes("[Your Phone Number]"),
+  refused.ok ? "unexpectedly accepted" : refused.error);
+
+const refusedShortField = validateRenderRequest({
+  type: "flyer",
+  title: "OPEN HOUSE",
+  body: "Clean body copy with no brackets at all.",
+  agentName: "Neil Monaghan",
+  agentPhone: "[Your Phone Number]",
+});
+check("render boundary REFUSES a placeholder in a short field (agentPhone)",
+  !refusedShortField.ok && refusedShortField.error.includes("agentPhone") && refusedShortField.error.includes("[Your Phone Number]"),
+  refusedShortField.ok ? "unexpectedly accepted" : refusedShortField.error);
+
+const clean = validateRenderRequest({
+  type: "flyer",
+  title: "OPEN HOUSE",
+  body: "For more information or to RSVP, contact:\nNeil Monaghan\nLet's make your dream a reality!",
+  agentName: "Neil Monaghan",
+  agentPhone: "(512) 555-0147",
+});
+check("clean request is accepted", clean.ok);
+if (clean.ok) {
+  check("clean request carries the agent's REAL details through verbatim (output = real details, not brackets)",
+    clean.data.body === "For more information or to RSVP, contact:\nNeil Monaghan\nLet's make your dream a reality!"
+      && clean.data.agentPhone === "(512) 555-0147"
+      && !/\[[^[\]\n]{1,80}\]/.test(clean.data.body));
+  // End-to-end: the accepted request actually renders a deliverable PNG.
+  const dataUrl = await renderMarketingPng(clean.data);
+  check("clean request renders a real PNG (deliverable carries real details)",
+    typeof dataUrl === "string" && dataUrl.startsWith("data:image/png;base64,") && dataUrl.length > 10000);
 }
 
 // ---- 3) Generation layer — the mock path previously emitted brackets --------

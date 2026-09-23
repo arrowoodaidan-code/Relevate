@@ -37,6 +37,15 @@ export function containsBracketPlaceholder(text: string): boolean {
   return new RegExp(BRACKET_TOKEN.source).test(text);
 }
 
+/** The first bracketed placeholder token in the text, or null — used by the
+ *  render boundary (validateRenderRequest) to REFUSE with a precise error
+ *  naming the offending token (task fa4a26ae, lead direction: fail loudly at
+ *  the render boundary rather than printing a bracket on a finished flyer). */
+export function findBracketPlaceholder(text: string): string | null {
+  const m = new RegExp(BRACKET_TOKEN.source).exec(text);
+  return m ? m[0] : null;
+}
+
 /**
  * Remove every bracketed placeholder token and the lines it leaves empty.
  * Byte-identical fast path when the text contains no "[" at all.
