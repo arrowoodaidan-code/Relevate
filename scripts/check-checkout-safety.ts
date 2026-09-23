@@ -146,7 +146,7 @@ check(
   `no literal or cross-host URL is assigned to window.location (found: ${assignments.join(" | ")})`,
 );
 check(
-  /from "\.\/price-keys"/.test(checkout) && !/starter_monthly|pro_annual|team_annual/.test(checkout),
+  /from "\.\/price-keys"/.test(checkoutCode) && !/starter_monthly|pro_annual|team_annual/.test(checkoutCode),
   "plan keys still come from src/lib/price-keys.ts (no local copy)",
 );
 
@@ -171,6 +171,51 @@ for (const route of ["src/routes/pricing.tsx", "src/routes/index.tsx"]) {
     `${route} handles the unavailable outcome`,
   );
 }
+
+/* ---- 11. The client-side money path that ships, and the honesty rules around it. ---- */
+const links = read("src/lib/payment-links.ts");
+check(
+  /export const PAYMENT_LINKS/.test(links) && /export const API_CHECKOUT_ENABLED = false/.test(links),
+  "payment-links.ts defines the per-plan Stripe Payment Links and keeps API_CHECKOUT_ENABLED off",
+);
+check(
+  /client_reference_id/.test(links) && /prefilled_email/.test(links),
+  "a Payment Link carries client_reference_id/prefilled_email so a payment is attributable",
+);
+check(
+  /checkoutAvailability/.test(read("src/routes/pricing.tsx")),
+  "pricing.tsx asks checkoutAvailability() before presenting a plan as purchasable",
+);
+check(
+  /ctaDisabled/.test(read("src/routes/pricing.tsx")) && /Not available yet/.test(read("src/routes/pricing.tsx")),
+  "an unbuyable plan is rendered with a disabled CTA labelled 'Not available yet'",
+);
+check(
+  /paymentLinkUrl/.test(checkoutCode) && /from "\.\/payment-links"/.test(checkoutCode),
+  "product-checkout.ts prefers the Payment Link path",
+);
+check(
+  /API_CHECKOUT_ENABLED/.test(checkoutCode),
+  "the legacy API path is gated on the verified-live flag (never offered while the layer is stale)",
+);
+check(
+  /tier === "demo"/.test(checkoutCode),
+  "a demo account is refused a payable link client-side (the live layer has no such guard)",
+);
+for (const [file, src] of [
+  ["src/components/CheckoutUnavailableDialog.tsx", dialog],
+  ["src/routes/pricing.tsx", read("src/routes/pricing.tsx")],
+  ["src/routes/index.tsx", read("src/routes/index.tsx")],
+] as const) {
+  check(
+    !/Reason reported by this page/.test(src) && !/Invalid priceLookupKey/.test(src),
+    `${file} shows no raw server diagnostics to a visitor`,
+  );
+}
+check(
+  /console\.warn\("\[checkout\]/.test(checkoutCode),
+  "the raw server message goes to the console for us instead of to the visitor",
+);
 
 /* Report. */
 for (const line of notes) console.log(line);

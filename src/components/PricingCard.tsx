@@ -15,6 +15,10 @@ interface PricingCardProps {
   ctaText?: string;
   ctaHref?: string;
   onCtaClick?: () => void;
+  /** Renders a non-clickable CTA. Use when the plan genuinely cannot be bought here yet. */
+  ctaDisabled?: boolean;
+  /** One honest line under the CTA explaining why. */
+  ctaNote?: string;
   highlighted?: boolean;
   className?: string;
 }
@@ -29,6 +33,8 @@ export function PricingCard({
   ctaText = "Get Started",
   ctaHref = "#cta",
   onCtaClick,
+  ctaDisabled = false,
+  ctaNote,
   highlighted = false,
   className,
 }: PricingCardProps) {
@@ -88,7 +94,21 @@ export function PricingCard({
         ))}
       </ul>
 
-      {onCtaClick ? (
+      {ctaDisabled ? (
+        <>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            className="w-full cursor-not-allowed rounded-lg border border-emerald-900/50 bg-emerald-950/40 px-5 py-3 text-sm font-semibold text-emerald-300/50"
+          >
+            {ctaText}
+          </button>
+          {ctaNote ? (
+            <p className="mt-2 text-center text-xs leading-relaxed text-emerald-300/50">{ctaNote}</p>
+          ) : null}
+        </>
+      ) : onCtaClick ? (
         <button
           type="button"
           onClick={onCtaClick}

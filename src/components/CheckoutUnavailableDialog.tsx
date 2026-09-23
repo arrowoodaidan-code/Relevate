@@ -49,14 +49,14 @@ export function CheckoutUnavailableDialog({ unavailable, onClose, onRetry, retry
         </h2>
 
         <p className="mt-3 text-sm leading-relaxed text-emerald-200/70">
+          {unavailable.reason}
+        </p>
+
+        <p className="mt-3 text-sm leading-relaxed text-emerald-200/70">
           We could not start a payment for{" "}
           <span className="font-semibold text-emerald-100">{unavailable.planLabel}</span> on this
           page. <span className="font-semibold text-emerald-100">Nothing has been charged</span> and
           nothing has been submitted.
-        </p>
-
-        <p className="mt-3 text-xs leading-relaxed text-emerald-300/40">
-          Reason reported by this page: {unavailable.reason}
         </p>
 
         {unavailable.fallback ? (

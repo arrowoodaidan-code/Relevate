@@ -50,48 +50,58 @@ error — new errors are the signal the gate exists to catch.
 
 ## Checkout: where a buyer pays, and where they land afterwards
 
-Relevate publishes on the branded domain (`relevatelistingassistant.ctonew.app`), and the same
-codebase can also be deployed to a Vercel host. **Only the host the buyer is already on takes the
-money.** No CTA moves a buyer to another hostname to pay: a payment taken on a deployment this team
-cannot see is money we cannot reconcile, which is worse than no payment at all.
+**A buyer never leaves this host to pay, and is never handed a payment path that cannot return them
+to a page that loads.** A payment taken in a Stripe account we cannot see is money we cannot
+reconcile; a payment whose success page is unreachable is worse.
 
-### Post-payment redirect — fixed 2026-09-23 (P0)
+### The three ways a plan can be offered — in priority order
 
-A live session created on the branded domain came back with `success_url`/`cancel_url` on
-`ip-10-110-103-223.us-west-2.prod.aws.beamlit.net` — an internal hostname with no public DNS record
-— because the endpoint preferred `process.env.VERCEL_URL`. A paying customer would have been sent to
-a page that cannot load. Resolution now lives in `src/lib/public-url.ts`, in this order:
+1. **Stripe Payment Link** (`src/lib/payment-links.ts`). Created in our own connected account, so it
+   needs no server route and works even while this host's `/api/*` layer is stale. The client
+   appends `client_reference_id` (the signed-in user's id) and `prefilled_email`, so a purchase is
+   still attributable when we reconcile. Paste a link per plan against its price lookup key
+   (`PRODUCTS → Payment links` in Stripe), with `after_completion` → redirect to
+   `https://<our public host>/app/subscription/success?plan=<price lookup key>`.
+2. **The API path**, and only when `API_CHECKOUT_ENABLED = true` in that same module. It stays
+   **false** because on the branded host today the published `/api/*` layer creates sessions whose
+   `success_url` is an internal hostname (`ip-10-110-66-173.…`, measured 2026-09-23), so the buyer
+   would be stranded. Flip it only after a session created on the live host has been read back from
+   Stripe and its `success_url` is a public host that loads.
+3. **Nothing.** A plan with neither of the above renders a disabled CTA labelled "Not available
+   yet" with an honest note — the price stays visible because it is real, but no button promises a
+   purchase that cannot complete. This is the current state of *all* plans until the Payment Links
+   exist, and of the yearly cycle until yearly links do.
 
-1. an explicitly configured public base URL — `PUBLIC_APP_URL`, `APP_BASE_URL` or `SITE_BASE_URL`;
-2. the host the request itself arrived on (`x-forwarded-host`, else `Host`) — the session is created
-   on the host the buyer is using, so the two always agree;
-3. platform hostnames (`VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL`), **only** if they pass the
-   public-hostname test;
-4. otherwise **nothing**: `create-checkout-session` throws *before* creating a session, so no money
-   is taken and no customer is stranded on a dead page.
+### The post-payment redirect itself
 
-Internal hostnames are rejected: IP literals, `localhost`, single-label names,
-`.internal`/`.local`/`.svc`, and IP-encoded machine names such as `ip-10-110-103-223.…`. Setting
-`PUBLIC_APP_URL` to the site's public address makes resolution deterministic and is the recommended
-configuration.
+`src/lib/public-url.ts` resolves the base URL for `success_url`/`cancel_url` in this order: an
+explicitly configured public base URL (`PUBLIC_APP_URL`/`APP_BASE_URL`/`SITE_BASE_URL`) → the host the
+request arrived on (`x-forwarded-host`, else `Host`) → platform hostnames, only if they pass the
+public-hostname test → nothing, in which case `create-checkout-session` throws *before* creating a
+session. Internal names (IP literals, `localhost`, single-label, `.internal`/`.local`/`.svc`, and
+IP-encoded machine names like `ip-10-110-83-102.…`) can never be written into a Stripe field.
 
-### When a host cannot start a payment
+### Why Payment Links exist (the live layer)
 
-The CTA asks the host the buyer is on. On failure **nothing navigates and nothing is charged**: an
-in-place notice states the reason and — when an *annual* key is the problem (the branded host's
-server layer is older than this repository and rejects `starter_annual`/`pro_annual`/`team_annual`
-with HTTP 400) — offers a one-click retry on the same host with the monthly equivalent. The buyer is
-never sent to another host to pay.
+Publishing refreshes the **client** bundle but not the `/api/*` layer: after publishing `da51621`,
+which contains the redirect fix, the live host still rejected `pro_annual` (8 of 8 requests,
+"Must be one of: starter_monthly, pro, team"), still handed a **demo** account a payable session
+(6 of 6 requests) and still wrote the internal host into new sessions. Every backend behind the
+public host behaves that way — it is not a partial rollout. The Payment Link path is the money path
+that does not depend on that layer.
 
 ### Rules this area must keep true
 
-- The only navigation is to the Stripe URL this host returned: no assignment of a literal or
-  cross-host URL to `window.location`.
+- The only navigation is to a Stripe URL this page obtained: no literal or cross-host URL is
+  assigned to `window.location`.
 - No hostname of another deployment may appear in `src/` as a destination (naming one in a comment
   that explains the history is fine).
-- Every generated `success_url`/`cancel_url` must be a public hostname. `bun scripts/check-checkout-safety.ts`
-  (36 checks; the resolver itself is executed, not pattern-matched) fails the build if that regresses.
-- Never claim a host can take a payment while `STRIPE_SECRET_KEY` is unset there.
+- A plan with no working path gets a disabled CTA, never a button that can fail.
+- No raw server diagnostics (HTTP codes, `Invalid priceLookupKey: …`) in anything a visitor reads;
+  they go to the console.
+- A demo account is refused a payable link client-side, because the live layer has no demo guard.
+- `bun scripts/check-checkout-safety.ts` (47 checks; it executes the resolver and the availability
+  rules) fails the build if any of the above regresses.
 
 ## Analytics: intentionally off
 

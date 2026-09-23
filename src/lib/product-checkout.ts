@@ -1,23 +1,23 @@
 /**
  * Checkout routing for Relevate.
  *
- * RULES (rewritten 2026-09-23 — P0 fix; supersedes the 2026-09-20 cross-host handoff):
- *   1. A checkout CTA asks the CURRENT host to start checkout. On success the browser goes to
- *      Stripe's own page and nothing else has moved.
- *   2. If the current host cannot start a payment, NOTHING navigates and nothing is charged.
- *      The visitor is told, in place, why it failed. **A buyer is never routed to another host
- *      to pay.** The old behaviour sent them to `site-gray-five-32.vercel.app`, which bills into
- *      a separate Stripe account this team cannot see or reconcile — taking money we cannot
- *      account for is worse than not taking it.
- *   3. Where it genuinely fits, we offer what does work on this host instead: a plan whose
- *      *annual* key this host rejects (its server layer is older than this repository) can be
- *      retried monthly in one click, labelled honestly.
+ * HOW A BUYER PAYS (rewritten 2026-09-23, task cc757042)
+ *   1. If this plan has a Stripe Payment Link (`src/lib/payment-links.ts`), that is the path: it
+ *      lives on Stripe's side, so it works even though the live host's `/api/*` layer is stale, and
+ *      it can carry the signed-in user's id for reconciliation.
+ *   2. Otherwise, ONLY when `API_CHECKOUT_ENABLED` is true, ask this host's
+ *      `/api/create-checkout-session` (see that flag: on the branded host today it produces
+ *      success URLs on an internal hostname, so it stays off until verified live).
+ *   3. Otherwise nothing is offered. That is deliberate: a Subscribe button that takes money and
+ *      strands the buyer is worse than no button, and the UI labels the plan "Not available yet".
  *
- * The plan keys themselves live in src/lib/price-keys.ts — the single source of truth. This
- * module must never carry its own copy of them, and no hostname of another deployment may
- * appear here as a navigation destination.
+ * A buyer is never routed to another host to pay — a payment taken in a Stripe account we cannot
+ * see is money we cannot reconcile.
+ *
+ * The plan keys live in src/lib/price-keys.ts — the single source of truth.
  */
 import { isValidPriceKey, MONTHLY_KEY_FOR } from "./price-keys";
+import { API_CHECKOUT_ENABLED, paymentLinkFor, paymentLinkUrl } from "./payment-links";
 
 /** Human label for a plan key, e.g. "Starter (yearly)". Kept here so both CTA surfaces agree. */
 export function planLabel(priceLookupKey: string): string {
@@ -28,15 +28,18 @@ export function planLabel(priceLookupKey: string): string {
 }
 
 /**
- * Read the checkout intent carried by a legacy `?plan=<key>&start=1` URL.
- *
- * We no longer create these links (see rule 2 at the top of this file — nothing is routed to
- * another host any more), but a previously shared link may still arrive. It only *selects* a plan
- * and, at most, asks this page to start checkout for it on this host: the same rule applies, so an
- * unreachable plan still fails in place instead of moving anyone.
- *
- * Returns `plan: null` for anything that is not a known price key, so a hand-edited or stale link
- * can never start checkout for a plan that does not exist.
+ * How a plan can be paid for right now — pure and synchronous, so the pricing UI can decide
+ * whether to render a working control or the honest "not available yet" state.
+ */
+export function checkoutAvailability(priceLookupKey: string): "payment-link" | "api" | "none" {
+  if (paymentLinkFor(priceLookupKey)) return "payment-link";
+  return API_CHECKOUT_ENABLED ? "api" : "none";
+}
+
+/**
+ * Read the checkout intent carried by a legacy `?plan=<key>&start=1` URL. We no longer create these
+ * links; a previously shared one only *selects* a plan and may ask this page to start checkout for
+ * it here, under rules 1–3 above.
  */
 export function readCheckoutIntent(search: string): { plan: string | null; autoStart: boolean } {
   const params = new URLSearchParams(search);
@@ -47,34 +50,54 @@ export function readCheckoutIntent(search: string): { plan: string | null; autoS
   };
 }
 
-/**
- * Result of a checkout attempt.
- * - `redirecting`: this host started a real Stripe Checkout Session and the browser is already
- *   navigating to Stripe. Nothing else to render.
- * - `unavailable`: this host could not start a payment. NOTHING has navigated and NOTHING has
- *   been charged. The UI states the reason in place and, when `fallback` is present, offers a
- *   one-click retry on THIS host with a plan key that does work here.
- */
+/** The signed-in user, when there is one. Never throws: attribution is a bonus, not a gate. */
+async function signedInUser(): Promise<{ id: string; email?: string; tier?: string } | null> {
+  try {
+    const res = await fetch("/api/auth/me", { credentials: "include" });
+    if (!res.ok) return null;
+    const data: any = await res.json().catch(() => null);
+    const user = data?.user ?? data;
+    if (!user?.id) return null;
+    return {
+      id: String(user.id),
+      email: user.email ? String(user.email) : undefined,
+      tier: user.subscription_tier ? String(user.subscription_tier) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type CheckoutStartResult =
   | { outcome: "redirecting" }
   | {
       outcome: "unavailable";
-      /** Why this host cannot do it — shown to the visitor, never invented. */
+      /** Why this page cannot take the payment — shown to the visitor, never invented. */
       reason: string;
-      /** The plan the visitor asked for, already labelled for display. */
       planKey: string;
       planLabel: string;
       /**
-       * A plan that is known to work on this host instead (monthly, when an annual key was
-       * rejected). Absent when there is nothing honest to offer.
+       * A plan that IS available on this page instead (the monthly equivalent, when only the annual
+       * cycle is missing). Absent when there is nothing honest to offer.
        */
       fallback?: { planKey: string; planLabel: string; note: string };
     };
 
 export type CheckoutUnavailable = Extract<CheckoutStartResult, { outcome: "unavailable" }>;
 
+/** The monthly fallback descriptor, when the monthly plan is genuinely purchasable here. */
+function monthlyFallback(priceLookupKey: string) {
+  const monthly = MONTHLY_KEY_FOR[priceLookupKey];
+  if (!monthly || checkoutAvailability(monthly) === "none") return undefined;
+  return {
+    planKey: monthly,
+    planLabel: planLabel(monthly),
+    note: "Billed monthly on this page, cancel any time.",
+  };
+}
+
 /**
- * Start checkout for a plan on the current host.
+ * Start checkout for a plan.
  *
  * @param priceLookupKey  a key from src/lib/price-keys.ts (monthly or annual).
  * @param opts.onAnalytics  fired only when a checkout genuinely starts.
@@ -88,12 +111,67 @@ export async function startCheckout(
     throw new Error(`Unknown plan "${priceLookupKey}" — refused before contacting checkout.`);
   }
 
-  let failure = "Checkout is not available from this page right now. Nothing has been charged.";
+  const user = await signedInUser();
+
+  /* Demo accounts never bill. The live host's server layer enforces no such thing (measured: it
+   * returns a payable session for a demo user id), so the guarantee is enforced here, client-side,
+   * before any Stripe URL is handed over. */
+  if (user?.tier === "demo") {
+    return {
+      outcome: "unavailable",
+      reason: "Demo accounts have full access and never require billing.",
+      planKey: priceLookupKey,
+      planLabel: planLabel(priceLookupKey),
+    };
+  }
+
+  const link = paymentLinkUrl(priceLookupKey, {
+    clientReferenceId: user?.id,
+    email: user?.email,
+  });
+  if (link) {
+    opts?.onAnalytics?.();
+    window.location.href = link;
+    return { outcome: "redirecting" };
+  }
+
+  if (API_CHECKOUT_ENABLED) {
+    const result = await startViaApi(priceLookupKey, opts);
+    if (result) return result;
+  }
+
+  /* Nothing on this page can take this plan's money without a return path we trust. Say so. */
+  const fallback = monthlyFallback(priceLookupKey);
+  return {
+    outcome: "unavailable",
+    reason:
+      priceLookupKey.endsWith("_annual")
+        ? "Yearly billing isn't available on this page yet. Nothing has been charged."
+        : "Subscribing from this page isn't available yet. Nothing has been charged.",
+    planKey: priceLookupKey,
+    planLabel: planLabel(priceLookupKey),
+    ...(fallback ? { fallback } : {}),
+  };
+}
+
+/**
+ * The legacy API path. Returns null when this page could not start a payment (the caller then
+ * reports the honest "not available" state), or a `redirecting` result when the browser is on its
+ * way to Stripe.
+ *
+ * Server error text is NEVER shown to a visitor — it goes to the console for us instead, because
+ * lines like `Invalid priceLookupKey: pro_annual. Must be one of: …` describe our internals.
+ */
+async function startViaApi(
+  priceLookupKey: string,
+  opts?: { onAnalytics?: () => void },
+): Promise<CheckoutStartResult | null> {
   try {
     const res = await fetch("/api/create-checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ priceLookupKey }),
+      credentials: "include",
     });
     const data: { url?: string; error?: string } = await res.json().catch(() => ({}));
     if (res.ok && data.url) {
@@ -101,30 +179,9 @@ export async function startCheckout(
       window.location.href = data.url;
       return { outcome: "redirecting" };
     }
-    failure =
-      data.error ||
-      `Checkout is unavailable from this page (HTTP ${res.status}). Nothing has been charged.`;
-  } catch {
-    failure = "Could not reach the checkout service from this page. Nothing has been charged.";
+    if (data.error) console.warn("[checkout] API declined:", data.error);
+  } catch (err) {
+    console.warn("[checkout] API unreachable:", err);
   }
-
-  // Nothing navigates and nothing is charged. Offer a plan that works here when we know one:
-  // this host's server layer rejects the annual lookup keys, and the monthly equivalent is a
-  // real, payable plan on the same host and the same Stripe account.
-  const monthly = MONTHLY_KEY_FOR[priceLookupKey];
-  const fallback = monthly
-    ? {
-        planKey: monthly,
-        planLabel: planLabel(monthly),
-        note: "Billed monthly on this site, cancel any time.",
-      }
-    : undefined;
-
-  return {
-    outcome: "unavailable",
-    reason: failure,
-    planKey: priceLookupKey,
-    planLabel: planLabel(priceLookupKey),
-    ...(fallback ? { fallback } : {}),
-  };
+  return null;
 }
