@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FeatureCard, Navigation, RelevateLockup } from "~/components";
+import { CheckoutHandoffDialog, FeatureCard, Navigation, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
-import { startCheckout } from "~/lib/product-checkout";
+import { startCheckout, type CheckoutHandoff } from "~/lib/product-checkout";
 import { monthlyPriceDisplay } from "~/lib/pricing-display";
 
 /* The CTA section's button subscribes to Starter monthly; its label quotes the real
@@ -136,18 +136,28 @@ const steps = [
 
 function Home() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<CheckoutHandoff | null>(null);
+  const [handoffPlanLabel, setHandoffPlanLabel] = useState("");
   useEffect(() => {
     trackEvent("landing_viewed");
   }, []);
 
-  async function handleSubscribe(priceLookupKey: string) {
+  async function handleSubscribe(priceLookupKey: string, planLabel: string) {
     setCheckoutLoading(priceLookupKey);
     try {
-      await startCheckout(priceLookupKey, {
+      const result = await startCheckout(priceLookupKey, {
         onAnalytics: () => trackEvent("checkout_started", { plan: priceLookupKey }),
       });
+      /* This host cannot take a payment: nothing navigated and nothing was charged. Name the
+       * destination host and let the visitor decide — never redirect silently. */
+      if (result.outcome === "handoff") {
+        setHandoffPlanLabel(planLabel);
+        setHandoff(result);
+        trackEvent("checkout_handoff_shown", { plan: priceLookupKey, host: result.host });
+      }
     } catch (err: any) {
       alert(err.message || "Failed to start checkout. Please try again.");
+    } finally {
       setCheckoutLoading(null);
     }
   }
@@ -452,12 +462,17 @@ function Home() {
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <button
-                onClick={() => handleSubscribe("starter_monthly")}
+                onClick={() =>
+                  handleSubscribe(
+                    "starter_monthly",
+                    `Starter — ${STARTER_MONTHLY.price}${STARTER_MONTHLY.period}`,
+                  )
+                }
                 disabled={checkoutLoading === "starter_monthly"}
                 className="w-full rounded-lg wood-button px-8 py-3.5 text-base font-semibold text-emerald-100 shadow-md sm:w-auto disabled:opacity-60"
               >
                 {checkoutLoading === "starter_monthly"
-                  ? "Redirecting..."
+                  ? "Opening checkout…"
                   : `Subscribe to Starter — ${STARTER_MONTHLY.price}${STARTER_MONTHLY.period}`}
                 <svg className="ml-2 inline-block h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -514,6 +529,14 @@ function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Explicit, labelled handoff when this host cannot start a payment (never a silent
+        * cross-host redirect). Cancelling leaves the visitor exactly where they were. */}
+      <CheckoutHandoffDialog
+        handoff={handoff}
+        planLabel={handoffPlanLabel}
+        onCancel={() => setHandoff(null)}
+      />
     </div>
   );
 }
