@@ -127,9 +127,12 @@ export interface RenderTemplateInput {
    * (eho-statement-footer-recommended: industry convention, NOT a legal
    * requirement; the federal mandate is the 11x14 office poster). */
   ehoFooter?: boolean;
-  /** EHO house MARK (logo image) — OFF by default: the asset's provenance is
-   * unverified (provisional artwork). The legend TEXT (ehoFooter) is the
-   * verified, default-on part (exact 24 CFR 110.25 wording). */
+  /** EHO house MARK (logo image) — OFF by default: a recommended industry convention,
+   * never required by law (the federal duty is the 11x14 office poster, 24 CFR
+   * 110.10/110.25; see eho-logo-asset-provenance). Pass 3 (2026-09-23) resolved the
+   * asset's provenance to a NAR-published, business-use file with conditions, so the
+   * flag is the agent's choice rather than a provenance block. The legend TEXT
+   * (ehoFooter) is the verified, default-on part (exact 24 CFR 110.25 wording). */
   ehoMark?: boolean;
   imageDataUrl?: string;
   brandStyle?: string;

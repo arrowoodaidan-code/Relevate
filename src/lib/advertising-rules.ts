@@ -3,8 +3,21 @@
  * ================================================================================
  * Copied VERBATIM from the compliance researcher's findings file:
  *   /home/team/shared/compliance/advertising-rules.json
- *   (relevate-advertising-rules v1.1.0, generated 2026-09-16, lead-verified)
+ *   (relevate-advertising-rules v1.1.0 + pass-3 follow-up 2026-09-23, lead-verified)
  * Human-readable companion: /home/team/shared/compliance/REAL-ESTATE-ADVERTISING-RULES.md
+ *
+ * PASS 3 (2026-09-23, re-synced): eho-logo-asset-provenance RESOLVED from
+ *   "unverified / do not ship" to verified best practice, GO with conditions —
+ *   ship only a NAR-published file, keep the 24 CFR 110.25 legend text with it,
+ *   and call it recommended, NEVER "required by law" (the federal duty is the
+ *   11x14 office poster, 24 CFR 110.10/110.25, not a per-ad logo). mls-attribution
+ *   verdict recorded (contractual per-MLS, no universal rule) and ny-dos-candidate
+ *   stays UNVERIFIED (19 NYCRR 175.25 wording not captured from a primary source).
+ *   Counted from the data below: 24 rules, 19 verified / 5 unverified. NOTE: the
+ *   shared JSON's own `access_note` still says "18 verified / 6 unverified" —
+ *   stale text in the researcher's meta block, reported upstream; the data itself
+ *   is 19/5. The data block is byte-identical to the JSON and must not be
+ *   hand-edited (scripts/check-advertising-rules.ts enforces it).
  *
  * v1.1.0 (2026-09-16): Texas PROMOTED to verified — 22 TAC 535.155 replaces the
  * former `tx-535-153-candidate` (535.153 is "Violating an Exclusive Agency", NOT
@@ -13,7 +26,9 @@
  * tx-535-155e-social-profile, tx-535-155f-misleading-list and
  * tx-535-155-no-license-number (an explicit negative finding: TX agent ads have NO
  * licence-number requirement). `eho-logo-asset-provenance` was added as UNVERIFIED
- * so the EHO-logo-file question is visible in the data, not only in the docs.
+ * so the EHO-logo-file question is visible in the data, not only in the docs; pass 3
+ * resolved it (see above). The EHO house mark stays default-OFF: it is a recommended
+ * industry convention, not a legal requirement, so the agent opts in.
  *
  * WHY THIS FILE EXISTS
  *  - The custom-design-editor compliance checklist panel reads its content from
@@ -83,7 +98,7 @@ export const ADVERTISING_RULES_META: AdvertisingRulesMeta = {
   disclaimer:
     "Research aid for product rule engine. NOT legal advice; not exhaustive or authoritative. Broker and state commission have final say. Rules marked confidence=unverified must NOT be enforced as hard requirements until verified.",
   access_note:
-    "All source_url entries accessed 2026-09-16. HTTP status recorded in source notes; unverified entries flagged. v1.1.0: TX promoted to verified (22 TAC 535.155, replacing the former 535.153 candidate); EHO logo asset provenance added as unverified.",
+    "All source_url entries accessed 2026-09-16 unless overridden per-entry. v1.1.0: TX promoted to verified (22 TAC 535.155). Pass-3 follow-up 2026-09-23 (schema unchanged, still 24 rules / 18 verified / 6 unverified): eho-logo-asset-provenance RESOLVED to verified/GO-conditional (NAR publish page read verbatim); mls-attribution verdict recorded (contractual per-MLS, stays unverified); ny-dos-candidate stays unverified (19 NYCRR 175.25 body text not captured from a primary source; statute map verified from archived nysenate.gov pages). JSON changed -> engineer MUST re-run scripts/sync-advertising-rules.ts before next publish (byte-identity gate).",
 };
 
 export const ADVERTISING_RULES: AdvertisingRule[] = [
@@ -211,17 +226,17 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     surface: ["flyer_footer", "social_footer", "design_assets"],
     type: "must_avoid",
     requirement:
-      "PROVENANCE FLAG (UNVERIFIED): do not ship an EHO logo IMAGE FILE in templates until its authoritative source and usage conditions are verified. The HUD logo page (hud.gov/program_offices/fair_housing_equal_opp/FHEO_logo) and the NAR 'logos-and-trademark-usage' path both returned HTTP 404 at access (2026-09-16). What IS verified: (i) the regulation's legend wording - 'EQUAL HOUSING OPPORTUNITY' + the statutory protected-class sentence (24 CFR 110.25); (ii) NAR's landing page /logos-and-trademark-rules (HTTP 200), which lists an Equal Housing Opportunity logo section whose asset file and precise use conditions were NOT re-verified. Shipping a logo of unverified provenance is an OPEN QUESTION for the owner.",
+      "RESOLVED 2026-09-23 -> GO with conditions. The EHO house-mark asset MAY be shipped from the NAR-published source; the provenance flag is lifted. Conditions: (a) use a NAR-hosted file only (PNG 25.14 KB, equal-housing-opportunity-logo-1200w.png on nar.realtor; JPG 210.65 KB also acceptable); (b) NEVER use the EPS variant at equalhousinglogo.com (third-party studio site, 'Red Clay Creative' - NOT authoritative); (c) keep the 24 CFR 110.25 legend text alongside the mark; (d) product copy must say the logo line is 'recommended', never 'required by law' (the federal mandate is the 11x14 poster rule, 24 CFR 110.10/110.25 - not a per-ad logo duty).",
     why:
-      "Compliance-task discipline: never ship an unverified asset in a compliance feature. 'Everyone uses the EHO logo' is a narrative, not a source.",
+      "Provenance established 2026-09-23, verbatim from NAR's live publisher page https://www.nar.realtor/logos-and-trademark-rules/equal-housing-opportunity-logo (HTTP 200; canonical CMS record on cms.nar.realtor): page summary and meta description both read 'Download the Equal Housing Opportunity logo for business use.'; page is explicitly targeted for 'REALTOR & Real Estate Professional'; field_downloadable=true; body: 'Please select the file type appropriate for your business use'. That is an authoritative, published, business-use download offer addressed to exactly the audience that uses this product. HUD's FHEO logo path (hud.gov/program_offices/fair_housing_equal_opp/FHEO_logo) still returns HTTP 404 -> NAR is the verifiable publisher of the mark for the real-estate-professional audience.",
     satisfied_by:
-      "Block the EHO logo FILE from template defaults until owner decision: (a) NAR-sourced mark used per NAR member rules, (b) HUD-sourced mark re-located on a live HUD page, or (c) legend text only. Meanwhile render 'Equal Housing Opportunity' as text (24 CFR 110.25 wording), optional, default-on.",
-    severity: "hard",
-    source_url: "https://www.hud.gov/program_offices/fair_housing_equal_opp/FHEO_logo",
-    accessed: "2026-09-16",
+      "Design assets: vendor the NAR-hosted PNG (nar.realtor original file equal-housing-opportunity-logo-1200w.png) as the footer-mark option, default-OFF toggle so agents choose to include the mark; legend text stays default-on; do not bundle or link equalhousinglogo.com; keep footer copy 'Equal Housing Opportunity' as the recommended wording (24 CFR 110.25).",
+    severity: "best practice",
+    source_url: "https://www.nar.realtor/logos-and-trademark-rules/equal-housing-opportunity-logo",
+    accessed: "2026-09-23",
     notes:
-      "UNVERIFIED - do not ship the asset as a requirement. Federal law does not require the EHO logo on every ad (poster rule = 24 CFR 110); the logo is program/industry convention. Owner call required before any logo file ships.",
-    confidence: "unverified",
+      "RESOLVED -> GO (conditional) 2026-09-23. Verbatim from the live page + its CMS record: downloads listed 'JPG 210.65 KB / EPS 2.02 MB' (EPS href -> https://equalhousinglogo.com - third-party studio site 'Red Clay Creative', NOT authoritative; use only NAR-hosted files) / 'PNG 25.14 KB'; NAR CMS metadata: field_summary 'Download the Equal Housing Opportunity logo for business use.', field_for 'REALTOR & Real Estate Professional', field_downloadable true, image absoluteUrl confirmed on cms.nar.realtor; asset verified reachable via curl HTTP 206 image/png and image/jpeg on www.nar.realtor. Residual caveat: NAR Membership Marks Manual body text not read in-session (that manual governs the REALTOR marks proper; the EHO logo page itself is a standalone 'Logos and Trademark Rules' download offer with no stated restriction beyond business use). HUD FHEO logo page 404 = 'cannot verify HUD provenance' is now the RESIDUAL caveat, not 'cannot verify the asset'.",
+    confidence: "verified",
   },
   {
     id: "nar-realtor-mark-usage",
@@ -399,16 +414,17 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     surface: ["flyer_footer", "social_footer"],
     type: "must_appear",
     requirement:
-      "CANDIDATE (UNVERIFIED): New York licensee advertising rules (19 NYCRR Part 175 / DOS guidance) - exact requirements UNVERIFIED in-session.",
+      "CANDIDATE (partially verified 2026-09-23, still UNVERIFIED as a ship rule): NY broker/salesperson advertising disclosure text = 19 NYCRR Part 175 sec 175.25 'Advertising' (Title 19, Ch V, Div of Licensing Services). Section EXISTS (confirmed in Westlaw govt NYCRR reprint); exact sub-clause wording NOT yet captured; DOS official site bot-blocked. Also verified from archived NYS Senate law pages: RPL Art 12-A has NO advertising-disclosure statute section today (442-e='Violations', 442-c='Violations by salesmen', 442-h='Rules of the secretary of state').",
     why:
-      "All primary routes blocked on 2026-09-16: dos.ny.gov/real-estate returned HTTP 403 to curl and served a Cloudflare 'Attention Required!' challenge via headless browser (no content); nysenate.gov legislation pages returned HTTP 403; public.leginfo.state.ny.us / legislation.nysenate.gov probes were launched but results were lost to a tool-channel failure (cannot claim any verified); the Internet Archive (wayback availability API) returned no archived snapshots for the DOS real-estate pages.",
+      "Routes retried 2026-09-23: dos.ny.gov = Cloudflare 'Attention Required' (screenshot saved); nysenate.gov = Cloudflare Turnstile, manual checkbox click re-issued challenge (Ray-ID changed); legislation.nysenate.gov API = reachable but errorCode 701 needs API key; public.leginfo.state.ny.us = HTTP 000 / CDP timeout (dead). PROGRESS via Internet Archive: Wayback HAS nysenate.gov law pages -> verified statute map of Art 12-A (440..444-Q) with no advertising section; NONE of RPP 440-443-A contains the word 'advertis' (grep over archived 2021 snapshots). Regulation located on govt.westlaw.com/nycrr (Thomson Reuters 'Unofficial New York Codes, Rules and Regulations'): Part 175 sec 175.25 is titled 'Advertising'; sec 175.4 is 'Broker's purchase of property listed with him' (NOT advertising); sec 175.18 'Use of trade or corporate name' also relevant for team/brand names.",
     satisfied_by:
-      "DO NOT ENFORCE. Revisit NY via browser/archive in follow-up; do not ship a NY-specific requirement until a live NY DOS page, 19 NYCRR text, or NY Senate/Assembly statute text is captured.",
+      "DO NOT ENFORCE YET. Next step (pass 4): open govt.westlaw.com/nycrr Part 175 sec 175.25 full text and capture the exact disclosure wording, then cross-check against a state source once dos.ny.gov is reachable. Westlaw reprint is commercial, not a primary state page - confidence stays unverified until DOS text is read.",
     severity: "hard",
-    source_url: "https://www.dos.ny.gov/licensing/real-estate",
-    accessed: "2026-09-16",
+    source_url:
+      "https://govt.westlaw.com/nycrr/Browse/Home/NewYork/UnofficialNewYorkCodesRulesandRegulations?guid=I21f87420ac4311dd81fce471ddb5371d",
+    accessed: "2026-09-23",
     notes:
-      "UNVERIFIED - do not ship as requirement. Routes tried: dos.ny.gov (403 + Cloudflare challenge), nysenate.gov (403), public.leginfo.state.ny.us (results lost to tool failure), Internet Archive (no snapshots).",
+      "UNVERIFIED - do not ship as requirement. Verified facts: (1) RPL Art 12-A currently contains NO advertising-disclosure section (archived nysenate.gov pages, 2021-01-25 snapshots; also 2025-11-14 snapshot of RPP/442-E exists); (2) statutory authority for DOS ad rules sits in RPL 442-h 'Rules of the secretary of state'; (3) NYCRR 175.25 'Advertising' exists per Westlaw govt reprint. Blocked: dos.ny.gov (Cloudflare), nysenate.gov (Turnstile), OpenLeg API (key req.), leginfo (dead). Evidence: /home/team/shared/compliance/ny-dos-cloudflare-2026-09-17.png and PASS3-DELTA-2026-09-23.md.",
     confidence: "unverified",
   },
   {
@@ -441,7 +457,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     source_url: "n/a",
     accessed: "2026-09-16",
     notes:
-      "UNVERIFIED per-MLS. Three candidate rule pages returned HTTP 200 at access (2026-09-16) but their attribution/listings-source text was NOT yet read: Bright MLS https://www.brightmls.com/about/legal/rules; California Regional MLS (CRMLS) https://www.crmls.org/legal/rules; Midwest Real Estate Data (MRED) https://www.mredllc.com/. Read each page's rule text and attribute each rule to its named MLS before shipping.",
+      "UNVERIFIED per-MLS - VERDICT 2026-09-23: IDX/MLS attribution is CONTRACTUAL per-MLS, not a citable universal rule. Each MLS sets its own IDX/display rules (adopted from NAR's model IDX policy) and each broker agrees to them contractually via participation/IDX agreements; there is no national statute to cite, and no single rule text applies to all agents. NAR IDX policy URLs re-probed 2026-09-23 (nar.realtor/policy-news/internet-data-exchange-idx-policy and .../internet-data-exchange-idx) both returned HTTP 404, so a live NAR model-policy text could not be captured to cite. Product treatment stands: optional agent-confirmable attribution line ('Source: {MLS}') as best practice, labelled agent-confirmable, NEVER presented as a legal requirement; a tool that cannot know the user's MLS must not enforce per-MLS rules. Candidate pages to read if per-MLS support is ever built (HTTP 200 at 2026-09-16 access, text unread): Bright MLS https://www.brightmls.com/about/legal/rules; California Regional MLS https://www.crmls.org/legal/rules; Midwest Real Estate Data https://www.mredllc.com/.",
     confidence: "unverified",
   },
   {
@@ -741,7 +757,7 @@ const RULE_SUMMARIES: Record<string, string> = {
   "fl-61j2-10-025-no-false-advertising":
     "Florida: no fraudulent, false, deceptive or misleading real estate advertising.",
   "eho-logo-asset-provenance":
-    "Do not ship an EHO logo image file: its authoritative source could not be verified. 24 CFR 110.25's \u201cEQUAL HOUSING OPPORTUNITY\u201d legend text stays the default.",
+    "Optional EHO house mark: ship only a NAR-published file, keep the 24 CFR 110.25 legend text alongside it, and call it recommended \u2014 never required by law. The legend text on its own is enough.",
   "tx-535-155a-name-and-broker":
     "Texas: ads must name the license holder (or team) and the broker, in a readily noticeable place.",
   "tx-535-155a-half-size":

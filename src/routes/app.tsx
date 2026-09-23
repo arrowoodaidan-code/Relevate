@@ -376,8 +376,10 @@ function AppDashboard() {
   const [jurisdiction, setJurisdiction] = useState("");
   const [narMember, setNarMember] = useState(false);
   const [ehoFooter, setEhoFooter] = useState(true);
-  // EHO house mark: OFF by default - the asset's provenance is unverified
-  // (provisional artwork); the legend TEXT footer is the verified part.
+  // EHO house mark: OFF by default - it is a recommended industry convention,
+  // never required by law, so the agent opts in (pass 3 resolved the asset's
+  // provenance to a NAR-published file, with a default-OFF toggle as a condition).
+  // The legend TEXT footer is what ships by default.
   const [ehoMark, setEhoMark] = useState(false);
   // Compliance notices returned by /api/render (FL missing-brokerage warning,
   // CA licence confirmation) — surfaced next to the designed preview.
@@ -1569,7 +1571,7 @@ function AppDashboard() {
                       </label>
                       <label className="flex items-center gap-2 text-xs text-emerald-200/70">
                         <input type="checkbox" checked={ehoMark} onChange={(e) => setEhoMark(e.target.checked)} className="accent-emerald-500" />
-                        EHO house mark (provisional artwork — provenance unverified; legend text is the verified part)
+                        EHO house mark (recommended convention, not required by law — leave off to omit; legend text is the default)
                       </label>
                     </div>
                   </div>
