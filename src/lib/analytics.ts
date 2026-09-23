@@ -1,38 +1,30 @@
 /**
- * PostHog analytics wrapper — degrades gracefully when env vars are missing.
+ * Analytics is intentionally OFF.
  *
- * Track key events:
- * - user_signed_up — fired after successful signup
- * - content_generated — fired after AI content generation
- * - checkout_started — fired when user clicks a plan
+ * Relevate has NO third-party analytics connection. No vendor script is injected, no analytics
+ * key ships to the browser, and no event leaves the page. This module is kept as a documented
+ * NO-OP so the ~20 call sites spread through the routes stay as harmless hooks (they record
+ * intent, not behaviour) and so nobody re-introduces a vendor by accident.
+ *
+ * `trackEvent()` and `identifyUser()` do nothing, and `isAnalyticsEnabled()` always returns
+ * false. If product metrics are wanted again, the intended path is counting off our own
+ * database inside the app (signups, generations, subscriptions) — not re-adding a browser
+ * analytics vendor. See README.md → "Analytics: intentionally off".
+ *
+ * Do not delete the call sites: they mark where a first-party counter would go.
  */
 
-const POSTHOG_KEY = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_POSTHOG_KEY : undefined;
-const POSTHOG_HOST = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_POSTHOG_HOST : undefined;
-
-let posthog: any = null;
-
-function getPostHog() {
-  if (!posthog && typeof window !== "undefined" && (window as any).posthog) {
-    posthog = (window as any).posthog;
-  }
-  return posthog;
-}
-
+/** Always false: no analytics destination is configured, by design. */
 export function isAnalyticsEnabled(): boolean {
-  return !!(POSTHOG_KEY && POSTHOG_HOST);
+  return false;
 }
 
-export function trackEvent(event: string, properties?: Record<string, any>): void {
-  const ph = getPostHog();
-  if (ph) {
-    ph.capture(event, properties ?? {});
-  }
+/** NO-OP. Retained so call sites compile and keep documenting where events would be recorded. */
+export function trackEvent(_event: string, _properties?: Record<string, any>): void {
+  // Intentionally empty: no analytics destination exists.
 }
 
-export function identifyUser(userId: string, traits?: Record<string, any>): void {
-  const ph = getPostHog();
-  if (ph) {
-    ph.identify(userId, traits ?? {});
-  }
+/** NO-OP. Never sends identity data anywhere. */
+export function identifyUser(_userId: string, _traits?: Record<string, any>): void {
+  // Intentionally empty: no analytics destination exists.
 }
