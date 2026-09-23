@@ -99,6 +99,11 @@ export interface PropertyDetails {
   agentName?: string;
   logoImage?: string;
   agentPhoto?: string;
+  /** Real agent contact details (client-side Agent & Logo section). When
+   *  supplied they must be used VERBATIM in any contact section; when absent
+   *  the copy must simply not reference them (task fa4a26ae). */
+  agentPhone?: string;
+  agentEmail?: string;
   /** Brand/agent sheet extracted from logo + headshot (set server-side). */
   agentIdentity?: string;
 }
@@ -156,8 +161,8 @@ Format as:
 1. HEADLINE: Catchy, attention-grabbing headline (max 10 words)
 2. SUBHEADLINE: Brief value proposition (max 15 words)
 3. HIGHLIGHTS: 5-6 bullet points of top features
-4. DIRECTIONS: Brief driving directions placeholder
-5. CONTACT: Agent contact information section with CTA to RSVP
+4. DIRECTIONS: One short line of genuine directions ONLY if they can be inferred from the address; otherwise omit this section entirely — never write a placeholder
+5. CONTACT: Agent contact information section with CTA to RSVP (use the agent's real name/contact details supplied in this task; if a detail was not supplied, omit it — never write a placeholder for it)
 
 The tone should be exciting and inviting. Use emojis sparingly where appropriate.`,
   },
@@ -244,6 +249,25 @@ export function buildPrompt(
   // any "ideal buyer" instruction in the template above (42 USC 3604(c)).
   let systemPrompt = template.systemPrompt + FAIR_HOUSING_SYSTEM_BLOCK;
   let userPrompt = template.userPrompt(details);
+  // Bracketed-placeholder rule (task fa4a26ae): the live defect — a rendered
+  // flyer with literal "[Your Phone Number]"/"[Your Email Address]" baked
+  // into the PNG — started here. The model was asked for a CONTACT section
+  // but given no contact data, and one template even asked for a
+  // "placeholder". The rule is now explicit in EVERY prompt: use supplied
+  // values verbatim, omit unsupplied details, never emit a bracketed token.
+  // (Deterministic enforcement lives in ai.ts/placeholder-guard.ts — this is
+  // the source-prevention half, not the guarantee.)
+  systemPrompt += `\n\nNEVER output bracketed template placeholders such as [Your Phone Number], [Your Email Address], [Your Name], [Agent Name], [First Name] or any other text in square brackets. If a detail was provided in this task, use its actual value exactly. If a detail was NOT provided, write copy that simply does not reference that detail — never a placeholder and never an invented value.`;
+  // Weave the agent's REAL contact details into the prompt when the user
+  // supplied them, so a contact section carries the true values instead of
+  // placeholders (task fa4a26ae).
+  if (details.agentPhone?.trim() || details.agentEmail?.trim()) {
+    const contactParts = [
+      details.agentPhone?.trim() ? `phone ${details.agentPhone.trim()}` : "",
+      details.agentEmail?.trim() ? `email ${details.agentEmail.trim()}` : "",
+    ].filter(Boolean);
+    userPrompt += `\n\nIMPORTANT: The agent's real contact details are: ${contactParts.join(", ")} — use these exact values in any contact/signature section.`;
+  }
 
   // Weave template/brand instructions into the prompts
   if (details.templateDescription) {

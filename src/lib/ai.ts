@@ -13,6 +13,7 @@ import {
   type FairHousingOutcome,
   type FairHousingScanResult,
 } from "./fair-housing";
+import { stripBracketPlaceholders } from "./placeholder-guard";
 import { randomUUID } from "node:crypto";
 import { sql } from "../db";
 
@@ -52,6 +53,19 @@ function generateMockContent(
   const price = `$${details.price.toLocaleString()}`;
   const features = details.keyFeatures.slice(0, 3).join(", ");
 
+  // Bracketed-placeholder rule (task fa4a26ae): the mock templates themselves
+  // must not emit placeholders. Signature lines use the SUPPLIED agent
+  // details when present and are OMITTED otherwise — an unsupplied detail
+  // renders nothing (never a bracket, never an invented value).
+  const agentSigLines = [
+    details.agentName?.trim(),
+    details.agentPhone?.trim(),
+    details.agentEmail?.trim(),
+  ].filter((s): s is string => Boolean(s));
+  const emailSignature = agentSigLines.length > 0
+    ? `Best regards,\n${agentSigLines.join("\n")}`
+    : `Best regards,`;
+
   const mocks: Record<ContentType, string> = {
     "property-description": `Welcome to ${address} — a stunning ${beds}-bedroom, ${baths}-bathroom home offering ${sqft} square feet of thoughtfully designed living space. Priced at ${price}, this property exemplifies modern comfort and style.
 
@@ -75,7 +89,7 @@ HIGHLIGHTS:
 • Prime location near shopping, dining, and parks
 • Move-in ready with recent updates throughout
 
-DIRECTIONS: [Add driving directions from nearest major intersection]
+DIRECTIONS: ${address} — see your preferred maps app for turn-by-turn directions.
 
 CONTACT: For more information or to RSVP, contact your agent today. Light refreshments will be served.`,
 
@@ -116,7 +130,7 @@ PREHEADER: ${beds} beds • ${baths} baths • ${sqft} sq ft — Schedule your t
 
 EMAIL BODY:
 
-Hi [First Name],
+Hi there,
 
 I'm excited to share this stunning new listing — ${address} — now available at ${price}!
 
@@ -133,12 +147,9 @@ I'm hosting an open house this weekend and would love to see you there. Can't ma
 
 Ready to take the next step? Hit reply or click the button below to book your showing.
 
-[Schedule a Tour]
+Schedule a tour — reply to this email to book a time.
 
-Best regards,
-[Agent Name]
-[Phone Number]
-[Email]
+${emailSignature}
 
 P.S. Open house this Sunday from 2-4pm — reply for the address and private showing times.`,
 
@@ -289,6 +300,13 @@ export async function generateContent(
   if (contentType === "social-media-post") {
     content = capHashtags(content);
   }
+  // Bracketed-placeholder guard (task fa4a26ae): the same deterministic
+  // enforcement pattern as the hashtag cap. Prompted rules alone did not stop
+  // "[Your Phone Number]"/"[Your Email Address]" from reaching a rendered
+  // flyer, so every generated output (model AND mock) is scrubbed here —
+  // placeholder text never reaches the client textarea, and an unsupplied
+  // detail simply renders nothing (never invented, see placeholder-guard.ts).
+  content = stripBracketPlaceholders(content);
 
   // Save to database (fire-and-forget — don't block the response)
   // Use a placeholder property ID from details or generate one
@@ -1032,7 +1050,11 @@ export async function refineContent(
   const finalize = (text: string): string =>
     // Owner directive (Aug 13): keep social-post hashtags capped at 5 even after
     // refinement (e.g. an instruction to "add more hashtags" must not exceed the cap).
-    contentType === "social-media-post" ? capHashtags(text) : text;
+    // Bracketed-placeholder guard (task fa4a26ae): a refinement prompt can coax
+    // the model into emitting template placeholders just as easily — scrub here
+    // so every candidate (first revision and strict retry) is clean before it
+    // reaches the textarea (and from there the renderer).
+    stripBracketPlaceholders(contentType === "social-media-post" ? capHashtags(text) : text);
   try {
     const first = await callOnce(
       `Content type: ${contentType}\n\nExisting content:\n---\n${currentContent}\n---\n\nUser instruction: ${instruction}\n\nRevise the content according to this instruction. Output ONLY the revised content.`,

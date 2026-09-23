@@ -8,6 +8,7 @@ import { deflateSync } from "node:zlib";
 import { createElement as h } from "react";
 import type { TemplateRegion } from "./prompts";
 import { marketingTemplate, type RenderTemplateInput, type RenderType, type TemplateReplicaInput, type InkBox } from "./render-templates";
+import { findBracketPlaceholder } from "./placeholder-guard";
 
 export interface RenderRequest extends Omit<RenderTemplateInput, "templateReplica"> {
   type: RenderType;
@@ -355,6 +356,29 @@ export function validateRenderRequest(value: unknown): { ok: true; data: RenderR
       for (const [id, image] of Object.entries(raw.regionImages as Record<string, unknown>)) if (!regions.some((region) => region.id === id && region.kind === "image") || !validImage(image)) return { ok: false, error: "regionImages contains an invalid image-region value" };
     }
     for (const key of ["templateWidth", "templateHeight"] as const) if (raw[key] != null && (!Number.isFinite(Number(raw[key])) || Number(raw[key]) < 64 || Number(raw[key]) > 10000)) return { ok: false, error: `${key} must be a valid source-image dimension` };
+  }
+  // Bracketed-placeholder guard (task fa4a26ae): REFUSE bracketed placeholder
+  // tokens at the render boundary — the last line of defense before a
+  // deliverable. The generation stage strips silently (copy is still editable
+  // there, see ai.ts); by the time text reaches this validator it is meant to
+  // be final, so a bracket token means something upstream failed and must
+  // surface loudly (HTTP 400 naming the field and token) instead of printing
+  // "[Your Phone Number]" on a finished flyer. jurisdiction is regex-validated
+  // (2 letters) and the remaining fields are booleans/images, so they are not
+  // checked.
+  for (const key of ["body", "title", "agentName", "brandStyle", "price", "beds", "baths", "sqft", "agentPhone", "brokerageName", "agentLicense", "brokerName", "brokerLicense"] as const) {
+    if (typeof raw[key] === "string") {
+      const token = findBracketPlaceholder(raw[key] as string);
+      if (token) return { ok: false, error: `${key} contains a bracketed placeholder ${token} — remove it or supply the real value, then render again.` };
+    }
+  }
+  if (raw.regionText != null && typeof raw.regionText === "object" && !Array.isArray(raw.regionText)) {
+    for (const [id, text] of Object.entries(raw.regionText as Record<string, string>)) {
+      if (typeof text === "string") {
+        const token = findBracketPlaceholder(text);
+        if (token) return { ok: false, error: `regionText[${id}] contains a bracketed placeholder ${token} — remove it or supply the real value, then render again.` };
+      }
+    }
   }
   return { ok: true, data: raw as unknown as RenderRequest };
 }
