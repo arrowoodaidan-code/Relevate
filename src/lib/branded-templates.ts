@@ -673,10 +673,12 @@ function DisclosureFooter(opts: {
 }) {
   const { input, x, w, top, availableH, legendColor, detailColor, markSize, fontSize } = opts;
   const showEho = input.ehoFooter !== false;
-  // EHO house MARK is provisional: the official asset's provenance could not be
-  // verified (HUD page 404 at research access), so it renders only when
-  // explicitly requested (ehoMark). The legend TEXT is the verified part
-  // (exact 24 CFR 110.25 wording) and is what ships by default.
+  // EHO house MARK is optional and OFF by default: a recommended convention, not
+  // a legal requirement, so it renders only when explicitly requested (ehoMark).
+  // Pass 3 (2026-09-23, eho-logo-asset-provenance) resolved the provenance to a
+  // NAR-published, business-use file with conditions (NAR-hosted only; default-OFF
+  // toggle). The legend TEXT is the verified part (exact 24 CFR 110.25 wording)
+  // and is what ships by default.
   const showEhoMark = showEho && input.ehoMark === true;
   const segments = disclosureSegments(input);
   if (!showEho && segments.length === 0) return null;
