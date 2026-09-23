@@ -14,6 +14,7 @@ bun scripts/vision-readability-gate.ts # Vision gate (below) — human-level rea
 # 2. Static + build
 bunx tsc --noEmit                     # must stay at baseline (0 NEW errors)
 bun run build                         # exit 0
+bun scripts/check-no-vendor-analytics.ts  # 15/15 — no third-party analytics connection (run AFTER the build so dist/ is covered)
 
 # 3. Deploy + post-deploy verification
 bash build-vercel.sh && bunx vercel deploy --prebuilt --prod --yes   # SE only

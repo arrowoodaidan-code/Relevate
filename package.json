@@ -21,7 +21,6 @@
     "clsx": "^2.1.1",
     "jpeg-js": "^0.4.4",
     "nodemailer": "^9.0.5",
-    "posthog-js": "^1.414.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "satori": "^0.29.0",

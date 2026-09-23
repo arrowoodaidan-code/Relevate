@@ -84,3 +84,35 @@ Nothing leaves the page until the buyer clicks Continue, and no host ever moves 
 - Plan keys live only in `src/lib/price-keys.ts`; the checkout module carries no copy of them.
 - Never claim the branded domain can take a payment while `STRIPE_SECRET_KEY` is unset there: the
   endpoint answers `500`.
+
+## Analytics: intentionally off
+
+Relevate ships **no third-party analytics connection**. No vendor script is injected into any page,
+no analytics key is sent to the browser, and no event leaves the page. The published build used to
+initialise a vendor with an empty key (a console warning on every page load); that loader is gone,
+together with its dependency, its env vars and its key.
+
+`src/lib/analytics.ts` is a documented **NO-OP**, kept so the ~20 call sites in the routes keep
+compiling and keep marking where a first-party counter would go:
+
+- `trackEvent(event, properties)` — does nothing.
+- `identifyUser(userId, traits)` — does nothing.
+- `isAnalyticsEnabled()` — always `false`.
+
+`src/lib/product-checkout.ts` keeps its optional `onAnalytics` hook; it fires the no-op, not a
+vendor call. Do not delete the call sites — they are the map of what would need to be counted.
+
+**Honest consequence:** with no analytics source at all, the signup/activation funnel, trial→paid
+conversion and churn numbers are **empty**. Nothing is measured today. When those KPIs are wanted
+back, the path is counting off our own database inside the app (signups, generations, trials,
+subscriptions) — not re-adding a browser analytics vendor.
+
+### Rules this area must keep true
+- No analytics vendor script, key or host may appear in `src/`, `package.json`, `bun.lock`,
+  `package-lock.json`, a root `.env*` file or the built output in `dist/` —
+  `bun scripts/check-no-vendor-analytics.ts` fails if one comes back (run it after
+  `bun run build` to cover the built output).
+- Every `<script>` rendered by `src/routes/__root.tsx` stays a `application/ld+json` metadata
+  block; no inline third-party loader.
+- The analytics module stays a NO-OP and its call sites stay in place.
+
