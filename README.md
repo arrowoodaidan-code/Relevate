@@ -116,3 +116,34 @@ subscriptions) — not re-adding a browser analytics vendor.
   block; no inline third-party loader.
 - The analytics module stays a NO-OP and its call sites stay in place.
 
+## Secrets: never in a tracked file
+
+A committed value is readable by anyone with repo access and it stays in git history forever, so
+**real secrets never enter a tracked file**. The tree used to violate this: `.env.prod` was tracked
+and carried a real `VERCEL_OIDC_TOKEN` (a 1066-character JWT) plus a live PostHog project key.
+This is fixed as follows:
+
+- `.env.prod` is **untracked** (`git rm --cached .env.prod`) and `.gitignore` keeps ignoring `.env*`.
+  The file itself is untouched on disk here, and this change deletes nothing the build needs:
+  nothing in the repository reads it (no `dotenv`, no `envDir`, no file read), and Vite's default
+  env files are `.env`, `.env.local`, `.env.[mode]`, `.env.[mode].local` — `.env.prod` is not one
+  of them. Secrets reach the running app as environment variables (owner: Settings → Secrets).
+- **What happens on the next `git pull`:** in a clone where `.env.prod` is still tracked and
+  unmodified, git deletes it from the working copy, because the commit removes the path. Nothing
+  reads it, so publishing is unaffected. To get a local copy again:
+  `vercel env pull .env.prod` (it is ignored, so it will not come back into git).
+- Real values live in the environment only. Placeholder-looking files are fine; a real value is not.
+
+### Gate: `bun scripts/check-no-committed-secrets.ts`
+
+Fails if any tracked file contains a secret-shaped value: Stripe live/test/restricted secret keys
+and `whsec_` webhook secrets, OpenAI-style `sk-…`, a PostHog `phc_…` key, GitHub/Slack/AWS/Google
+credentials, PEM private keys, any JWT, or any single opaque token-like run of 200+ characters. It
+also fails if any `.env*` file is tracked (templates in an explicit allow-list excepted), and it
+reports the env-shaped lines it classified as placeholders. A green run is backed by
+positive/negative controls inside the gate: every pattern is exercised against a synthetic
+real-looking sample (built at runtime so the gate does not flag itself) and placeholder text must
+classify as safe — so the scan cannot pass by matching nothing.
+
+Placeholder markers (`...`, `…`, `xxxx`, `your_`, `placeholder`, `example`, `change_me`, `redacted`,
+`<...>`) mark a value as safe. Never append one to a real value.
