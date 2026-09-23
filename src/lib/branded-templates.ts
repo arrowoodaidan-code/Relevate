@@ -549,6 +549,12 @@ function AgentBand({ agent, phone, x, top, w, nameFont }: { agent: string; phone
 //    auto-inserted, logos untouched.
 //  - State-aware wording: CA licence numbers are labelled "DRE #"; every other
 //    state "License #". No requirement is claimed for unverified states.
+//  - TX (22 TAC 535.155, verified v1.1.0): names only — licence numbers are
+//    NEVER rendered for TX (no licence-number requirement for agent ads, and
+//    the strip must not imply one). The broker's name renders as its own line
+//    at >= half the largest contact-info size (535.155(a) half-size rule);
+//    535.155(e)'s profile-page allowance is NOT used to weaken the on-image
+//    default — disclosures stay on the asset.
 //  - FL adjacency rule (61J2-10.025(3)(a)): the strip renders immediately below
 //    the agent band (the contact block), keeping the brokerage name adjacent to
 //    the point of contact information on web/social renders.
@@ -575,6 +581,10 @@ function disclosureSegments(input: RenderTemplateInput): string[] {
   const segs: string[] = [];
   const state = (input.jurisdiction ?? "").trim().toUpperCase();
   const licLabel = state === "CA" ? "DRE #" : "License #";
+  // TX (22 TAC 535.155, tx-535-155-no-license-number): Texas has NO
+  // licence-number requirement for agent advertising, so the strip never
+  // renders one and never implies it is needed. Names only.
+  const licSuppressed = state === "TX";
   const brokerage = input.brokerageName?.trim();
   if (brokerage) segs.push(brokerage);
   const agentName = input.agentName?.trim();
@@ -582,14 +592,14 @@ function disclosureSegments(input: RenderTemplateInput): string[] {
   if (agentName || agentLic) {
     let s = agentName ?? "";
     if (agentName && input.narMember) s += `, ${REALTOR_MARK}`;
-    if (agentLic) s += `${s ? " \u00B7 " : ""}${licLabel}${agentLic.replace(/^(DRE #|License #)\s*/i, "")}`;
+    if (agentLic && !licSuppressed) s += `${s ? " \u00B7 " : ""}${licLabel}${agentLic.replace(/^(DRE #|License #)\s*/i, "")}`;
     if (s) segs.push(s);
   }
   const brokerName = input.brokerName?.trim();
   const brokerLic = input.brokerLicense?.trim();
-  if (brokerName || brokerLic) {
+  if (brokerName || (brokerLic && !licSuppressed)) {
     let s = brokerName ? `Broker ${brokerName}` : "Broker";
-    if (brokerLic) s += `${brokerName ? " \u00B7 " : " "}${licLabel}${brokerLic.replace(/^(DRE #|License #)\s*/i, "")}`;
+    if (brokerLic && !licSuppressed) s += `${brokerName ? " \u00B7 " : " "}${licLabel}${brokerLic.replace(/^(DRE #|License #)\s*/i, "")}`;
     segs.push(s);
   }
   return segs;
@@ -607,7 +617,81 @@ function agentBandHeightPx(input: RenderTemplateInput, w: number): number {
   return Math.max(1, fit.lines.length) * fit.size * 1.15;
 }
 
+// TX 535.155(a) sizing anchor + footer plan (task 7be13be8) — exported so the
+// verify gate shares ONE sizing implementation with the footer.
+/** Largest contact-info font size in the ad — AgentBand's fitted name size
+ * (max 48, min 18) vs the fixed 26px phone line. This is the anchor for the TX
+ * half-size rule (tx-535-155a-half-size, 22 TAC 535.155(a)): the broker's name
+ * must render at least half of THIS. Mirrors AgentBand's fit parameters — keep
+ * in sync with AgentBand / agentBandHeightPx. */
+export function largestContactPx(input: RenderTemplateInput, w: number): number {
+  const agent = input.agentName?.trim() || "Your local real estate expert";
+  const nameFont = fb(input, DISPLAY, 700);
+  let nameSize = 48; // AgentBand's fallback size when the font buffer is absent
+  if (nameFont) {
+    const nameW = Math.max(140, w - (input.agentPhone ? 300 : 150));
+    const fit = fitBlockLines(agent, { width: nameW, height: 2 * 40 * 1.15, fontBuf: nameFont, size: 48, ls: 0, lineHeight: 1.15, minSize: 18, maxSize: 48 });
+    nameSize = fit.size;
+  }
+  return Math.max(nameSize, input.agentPhone ? 26 : 0);
+}
+/** TX layout plan for the disclosure footer — shared by DisclosureFooter and
+ * scripts/verify-tx-half-size.ts so both compute the same sizes. */
+export function txFooterPlan(
+  input: RenderTemplateInput,
+  w: number,
+  fontSize: number,
+): { brokerSeg: string | null; brokerSize: number; detailText: string; largestPx: number } {
+  const segments = disclosureSegments(input);
+  const isTX = (input.jurisdiction ?? "").trim().toUpperCase() === "TX";
+  const brokerSeg = isTX ? segments.find((seg) => seg.startsWith("Broker")) ?? null : null;
+  const detailSegs = brokerSeg ? segments.filter((seg) => seg !== brokerSeg) : segments;
+  const largestPx = largestContactPx(input, w);
+  return {
+    brokerSeg,
+    brokerSize: brokerSeg ? Math.max(fontSize, Math.ceil(largestPx / 2)) : fontSize,
+    detailText: detailSegs.join("  ·  "),
+    largestPx,
+  };
+}
 /** The disclosure strip: EHO mark + legend (default ON) and the user-supplied
+/** Largest contact-info font size in the ad — AgentBand's fitted name size
+ * (max 48, min 18) vs the fixed 26px phone line. This is the anchor for the TX
+ * half-size rule (tx-535-155a-half-size, 22 TAC 535.155(a)): the broker's name
+ * must render at least half of THIS. Mirrors AgentBand's fit parameters — keep
+ * in sync with AgentBand / agentBandHeightPx. */
+export function largestContactPx(input: RenderTemplateInput, w: number): number {
+  const agent = input.agentName?.trim() || "Your local real estate expert";
+  const nameFont = fb(input, DISPLAY, 700);
+  let nameSize = 48; // AgentBand's fallback size when the font buffer is absent
+  if (nameFont) {
+    const nameW = Math.max(140, w - (input.agentPhone ? 300 : 150));
+    const fit = fitBlockLines(agent, { width: nameW, height: 2 * 40 * 1.15, fontBuf: nameFont, size: 48, ls: 0, lineHeight: 1.15, minSize: 18, maxSize: 48 });
+    nameSize = fit.size;
+  }
+  return Math.max(nameSize, input.agentPhone ? 26 : 0);
+}
+/** TX layout plan for the disclosure footer — shared by DisclosureFooter and
+ * the verify gate (scripts/verify-tx-half-size.ts) so both use ONE sizing
+ * implementation (tx-535-155a-half-size). */
+export function txFooterPlan(
+  input: RenderTemplateInput,
+  w: number,
+  fontSize: number,
+): { brokerSeg: string | null; brokerSize: number; detailText: string; largestPx: number } {
+  const segments = disclosureSegments(input);
+  const isTX = (input.jurisdiction ?? "").trim().toUpperCase() === "TX";
+  const brokerSeg = isTX ? segments.find((s) => s.startsWith("Broker")) ?? null : null;
+  const detailSegs = brokerSeg ? segments.filter((s) => s !== brokerSeg) : segments;
+  const largestPx = largestContactPx(input, w);
+  return {
+    brokerSeg,
+    brokerSize: brokerSeg ? Math.max(fontSize, Math.ceil(largestPx / 2)) : fontSize,
+    detailText: detailSegs.join("  \u00B7  "),
+    largestPx,
+  };
+}
+/** The disclosure strip:
  * licence/brokerage line (only when supplied). Fit-boxed into availableH with
  * the same fitBlockLines machinery as every other slot — never clips into the
  * canvas edge. Returns null when there is truly nothing to render (EHO off AND
@@ -633,13 +717,18 @@ function DisclosureFooter(opts: {
   const showEhoMark = showEho && input.ehoMark === true;
   const segments = disclosureSegments(input);
   if (!showEho && segments.length === 0) return null;
-  const detailText = segments.join("  \u00B7  ");
+  // TX 535.155(a) half-size rule (tx-535-155a-half-size): the broker's name is
+  // its own line at >= half the largest contact-info size in the ad. Sizing
+  // comes from txFooterPlan so the verify gate shares ONE implementation.
+  const plan = txFooterPlan(input, w, fontSize);
+  const detailText = plan.detailText;
+  const brokerH = plan.brokerSeg ? Math.ceil(plan.brokerSize * 1.3) : 0;
   const textW = w - (showEhoMark ? markSize + 14 : 0);
   const legendH = showEho ? fontSize * 1.3 : 0;
   const detailFit = detailText
     ? fitBlockLines(detailText, {
         width: textW,
-        height: Math.max(fontSize * 1.3, availableH - legendH),
+        height: Math.max(fontSize * 1.3, availableH - legendH - brokerH),
         fontBuf: fb(input, SANS, 400),
         size: fontSize,
         ls: 0,
@@ -655,6 +744,9 @@ function DisclosureFooter(opts: {
     showEhoMark ? h("img", { key: "eho", src: ehoMarkDataUrl(legendColor), style: { width: markSize, height: markSize, flexShrink: 0 } }) : null,
     h("div", { key: "tx", style: { display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 } }, [
       showEho ? h("div", { key: "lg", style: { color: legendColor, fontFamily: SANS, fontSize, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.3 } }, EHO_LEGEND) : null,
+      // TX: broker's name at >= half the largest contact size (535.155(a)) —
+      // its own prominent line, only when a broker name was supplied.
+      plan.brokerSeg ? h("div", { key: "bx", style: { color: detailColor, fontFamily: SANS, fontSize: plan.brokerSize, fontWeight: 700, lineHeight: 1.3 } }, plan.brokerSeg) : null,
       detailFit ? h("div", { key: "dt", style: { color: detailColor, fontFamily: SANS, fontSize: detailFit.size, lineHeight: 1.3, whiteSpace: "pre-wrap" } }, detailFit.lines.join("\n")) : null,
     ]),
   ]);
