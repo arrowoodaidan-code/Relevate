@@ -1,5 +1,5 @@
 export { RelevateLockup, RelevateMark } from "./Logo";
-export { CheckoutHandoffDialog } from "./CheckoutHandoffDialog";
+export { CheckoutUnavailableDialog } from "./CheckoutUnavailableDialog";
 export { ContentCard } from "./ContentCard";
 export { ContentTypeSelector } from "./ContentTypeSelector";
 export { FeatureCard } from "./FeatureCard";

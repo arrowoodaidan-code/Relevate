@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckoutHandoffDialog, FeatureCard, Navigation, RelevateLockup } from "~/components";
+import { CheckoutUnavailableDialog, FeatureCard, Navigation, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
-import { startCheckout, type CheckoutHandoff } from "~/lib/product-checkout";
+import { startCheckout, type CheckoutUnavailable } from "~/lib/product-checkout";
 import { monthlyPriceDisplay } from "~/lib/pricing-display";
 
 /* The CTA section's button subscribes to Starter monthly; its label quotes the real
@@ -136,24 +136,23 @@ const steps = [
 
 function Home() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const [handoff, setHandoff] = useState<CheckoutHandoff | null>(null);
-  const [handoffPlanLabel, setHandoffPlanLabel] = useState("");
+  const [unavailable, setUnavailable] = useState<CheckoutUnavailable | null>(null);
+  const [checkoutRetrying, setCheckoutRetrying] = useState(false);
   useEffect(() => {
     trackEvent("landing_viewed");
   }, []);
 
-  async function handleSubscribe(priceLookupKey: string, planLabel: string) {
+  async function handleSubscribe(priceLookupKey: string, _planLabel: string) {
     setCheckoutLoading(priceLookupKey);
     try {
       const result = await startCheckout(priceLookupKey, {
         onAnalytics: () => trackEvent("checkout_started", { plan: priceLookupKey }),
       });
-      /* This host cannot take a payment: nothing navigated and nothing was charged. Name the
-       * destination host and let the visitor decide — never redirect silently. */
-      if (result.outcome === "handoff") {
-        setHandoffPlanLabel(planLabel);
-        setHandoff(result);
-        trackEvent("checkout_handoff_shown", { plan: priceLookupKey, host: result.host });
+      /* This host cannot take a payment: nothing navigated and nothing was charged. Say so in
+       * place — a buyer is never routed to another host to pay. */
+      if (result.outcome === "unavailable") {
+        setUnavailable(result);
+        trackEvent("checkout_unavailable_shown", { plan: priceLookupKey });
       }
     } catch (err: any) {
       alert(err.message || "Failed to start checkout. Please try again.");
@@ -530,12 +529,17 @@ function Home() {
         </div>
       </footer>
 
-      {/* Explicit, labelled handoff when this host cannot start a payment (never a silent
-        * cross-host redirect). Cancelling leaves the visitor exactly where they were. */}
-      <CheckoutHandoffDialog
-        handoff={handoff}
-        planLabel={handoffPlanLabel}
-        onCancel={() => setHandoff(null)}
+      {/* In-place notice when this host cannot start a payment. Nothing navigates, nothing is
+        * charged, and the visitor is never sent to another host to pay. */}
+      <CheckoutUnavailableDialog
+        unavailable={unavailable}
+        retrying={checkoutRetrying}
+        onClose={() => setUnavailable(null)}
+        onRetry={(key, label) => {
+          setUnavailable(null);
+          setCheckoutRetrying(true);
+          void handleSubscribe(key, label).finally(() => setCheckoutRetrying(false));
+        }}
       />
     </div>
   );
