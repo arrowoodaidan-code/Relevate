@@ -839,9 +839,12 @@ const cleanStr = (v?: string) => (typeof v === "string" ? v.trim() : "");
  *  - FL + missing brokerage name -> WARNING (61J2-10.025 must surface, not pass).
  *  - CA + any disclosure field present -> INFO confirmation (B&P 10140.6(b)(1)
  *    applicability is broker-confirmable - a confirmation, never a guarantee).
- *  - TX -> not yet implemented here: the TX rules ARE verified in the data
- *    (v1.1.0) but this function has no TX branch, so a TX request gets no
- *    warning and no requirement is claimed. Do not read silence as clearance.
+ *  - TX -> warning when the licence-holder/team name or the broker's name is
+ *    missing (22 TAC 535.155(a), verified). The half-size broker constraint is
+ *    enforced in the footer LAYOUT (branded-templates txFooterPlan). No
+ *    licence-number messaging: TX has NO licence-number requirement for agent
+ *    advertising (tx-535-155-no-license-number) - silence about numbers is by
+ *    design, not an oversight.
  *  - Any other state -> no requirement claimed, no warning.
  */
 export function disclosureWarnings(
@@ -869,6 +872,18 @@ export function disclosureWarnings(
         message: missing.length
           ? "CA licence details render as supplied (B&P Code \u00A710140.6(b)(1) covers first-point-of-contact solicitation material - confirm applicability with your responsible broker). Not yet filled: " + missing.join(", ") + "."
           : "CA licence details render as supplied (B&P Code \u00A710140.6(b)(1) covers first-point-of-contact solicitation material - confirm applicability with your responsible broker).",
+      });
+    }
+  }
+  if (state === "TX") {
+    const missing: string[] = [];
+    if (!cleanStr(input.agentName)) missing.push("the name of the licence holder or team placing the advertisement");
+    if (!cleanStr(input.brokerName)) missing.push("the responsible broker's name");
+    if (missing.length) {
+      out.push({
+        level: "warning",
+        message:
+          "Texas advertising must include, in a readily noticeable location: the name of the licence holder or team placing the ad, and the broker's name (22 TAC \u00A7535.155(a)). Missing from this render: " + missing.join("; ") + ". Texas does not require a licence number on agent advertising, so none is rendered.",
       });
     }
   }

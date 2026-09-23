@@ -1574,7 +1574,7 @@ function AppDashboard() {
                     </div>
                   </div>
                   <p className="text-xs text-emerald-300/40">
-                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office).
+                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office). Texas: your name and your broker's name must appear on the asset (22 TAC §535.155) — the broker's name automatically renders at least half the size of your largest contact info, and Texas does not require a licence number on agent advertising.
                   </p>
                   <div>
                     <label className="block text-sm font-medium text-emerald-200/80">
