@@ -13,7 +13,11 @@
 #      (TS2300/TS2323/TS2451) are never baselined and always fail;
 #   3. duplicate top-level declarations in src/ (esbuild "symbol X has already
 #      been declared" class) — scripts/check-duplicate-declarations.ts;
-#   4. a failing production build (`bun run build`).
+#   4. a failing production build (`bun run build`);
+#   5. any vendor analytics connection reappearing — scripts/check-no-vendor-analytics.ts
+#      (PostHog removal is an owner directive; a hit must be reviewed, never shipped);
+#   6. secrets in the tracked tree (a tracked .env* file or a secret-shaped value) —
+#      scripts/check-no-committed-secrets.ts.
 #
 # On success it prints the branch + HEAD sha it validated, so the publish that
 # follows is traceable to an exact commit.
@@ -51,7 +55,7 @@ command -v bun >/dev/null 2>&1 || { echo "FATAL: bun not on PATH"; exit 2; }
 command -v git >/dev/null 2>&1 || { echo "FATAL: git not on PATH"; exit 2; }
 
 echo
-echo "--- 1/5 Tree identity ---"
+echo "--- 1/6 Tree identity ---"
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || {
   echo "FATAL: not a git repository"
   exit 2
@@ -64,7 +68,7 @@ if [ "$BRANCH" != "main" ]; then
 fi
 
 echo
-echo "--- 2/5 Clean working tree ---"
+echo "--- 2/6 Clean working tree ---"
 PORCELAIN="$(git status --porcelain)"
 if [ -n "$PORCELAIN" ]; then
   echo "$PORCELAIN"
@@ -74,7 +78,7 @@ else
 fi
 
 echo
-echo "--- 3/5 Dependencies ---"
+echo "--- 3/6 Dependencies ---"
 if [ -d node_modules ]; then
   echo "node_modules present"
 else
@@ -82,7 +86,7 @@ else
 fi
 
 echo
-echo "--- 4/5 Typecheck vs baseline ($BASELINE) ---"
+echo "--- 4/6 Typecheck vs baseline ($BASELINE) ---"
 TSC_LOG="$(mktemp)"
 CUR="$(mktemp)"
 DIFF_LOG="$(mktemp)"
@@ -147,11 +151,26 @@ else
 fi
 
 echo
-echo "--- 5/5 Production build ---"
+echo "--- 5/6 Production build ---"
 if bun run build; then
   echo "build OK"
 else
   note_fail "bun run build failed"
+fi
+
+echo
+echo "--- 6/6 No vendor analytics / no committed secrets ---"
+# Both gates decide their own pass/fail and print their own findings; preflight
+# only records the outcome so a single run covers every publish-blocking class.
+if bun scripts/check-no-vendor-analytics.ts; then
+  echo "vendor-analytics gate OK"
+else
+  note_fail "vendor analytics connection detected (check output above) — PostHog removal is an owner directive; a hit needs a reviewed decision, not a silent publish"
+fi
+if bun scripts/check-no-committed-secrets.ts; then
+  echo "committed-secrets gate OK"
+else
+  note_fail "tracked .env file or secret-shaped value detected (check output above) — remove it from the tracked tree and rotate the credential"
 fi
 
 echo
