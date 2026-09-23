@@ -11,6 +11,7 @@
 // and only fails loudly if freeing AND rebinding both fail.
 import handler from "./dist/server/server.js";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { analyzeTemplateRegions, generateContent, generateImage, validateImageDataUrl, validatePropertyImages, validateAgentImages, refineContent } from "./src/lib/ai";
 import { analyzeListingPhotos, validateListingImages } from "./src/lib/listing-analysis";
 import { signup, login, verifySession, deleteSession } from "./src/lib/auth";
@@ -1035,8 +1036,7 @@ for (let attempt = 1; ; attempt++) {
       console.warn(
         `[team-site] port ${String(PORT)} still busy after 5 tries — freeing it (last publish wins). Processes holding ${String(PORT)} will be stopped.`,
       );
-      await Bun.$`sudo sh -c ${freePortScript}`.nothrow();
-      await Bun.sleep(400);
+      execSync(freePortScript, { stdio: "ignore" });
       continue;
     }
     if (attempt >= 15) {
