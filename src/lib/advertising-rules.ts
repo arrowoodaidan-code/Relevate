@@ -856,7 +856,7 @@ export function disclosureWarnings(
     out.push({
       level: "warning",
       message:
-        "Florida advertising must include the licensed name of the brokerage firm (Fla. Admin. Code R. 61J2-10.025). Add your brokerage name under Agent & Logo so this asset renders compliant - it was left off this render.",
+        "Florida advertising must include the licensed name of the brokerage firm (Fla. Admin. Code R. 61J2-10.025). This render is missing the brokerage name - add it under Agent & Logo so the asset carries the required disclosure. (This is a rule citation, not a compliance certification.)",
     });
   }
   if (state === "CA") {

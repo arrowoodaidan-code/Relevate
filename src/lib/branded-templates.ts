@@ -655,43 +655,6 @@ export function txFooterPlan(
   };
 }
 /** The disclosure strip: EHO mark + legend (default ON) and the user-supplied
-/** Largest contact-info font size in the ad — AgentBand's fitted name size
- * (max 48, min 18) vs the fixed 26px phone line. This is the anchor for the TX
- * half-size rule (tx-535-155a-half-size, 22 TAC 535.155(a)): the broker's name
- * must render at least half of THIS. Mirrors AgentBand's fit parameters — keep
- * in sync with AgentBand / agentBandHeightPx. */
-export function largestContactPx(input: RenderTemplateInput, w: number): number {
-  const agent = input.agentName?.trim() || "Your local real estate expert";
-  const nameFont = fb(input, DISPLAY, 700);
-  let nameSize = 48; // AgentBand's fallback size when the font buffer is absent
-  if (nameFont) {
-    const nameW = Math.max(140, w - (input.agentPhone ? 300 : 150));
-    const fit = fitBlockLines(agent, { width: nameW, height: 2 * 40 * 1.15, fontBuf: nameFont, size: 48, ls: 0, lineHeight: 1.15, minSize: 18, maxSize: 48 });
-    nameSize = fit.size;
-  }
-  return Math.max(nameSize, input.agentPhone ? 26 : 0);
-}
-/** TX layout plan for the disclosure footer — shared by DisclosureFooter and
- * the verify gate (scripts/verify-tx-half-size.ts) so both use ONE sizing
- * implementation (tx-535-155a-half-size). */
-export function txFooterPlan(
-  input: RenderTemplateInput,
-  w: number,
-  fontSize: number,
-): { brokerSeg: string | null; brokerSize: number; detailText: string; largestPx: number } {
-  const segments = disclosureSegments(input);
-  const isTX = (input.jurisdiction ?? "").trim().toUpperCase() === "TX";
-  const brokerSeg = isTX ? segments.find((s) => s.startsWith("Broker")) ?? null : null;
-  const detailSegs = brokerSeg ? segments.filter((s) => s !== brokerSeg) : segments;
-  const largestPx = largestContactPx(input, w);
-  return {
-    brokerSeg,
-    brokerSize: brokerSeg ? Math.max(fontSize, Math.ceil(largestPx / 2)) : fontSize,
-    detailText: detailSegs.join("  \u00B7  "),
-    largestPx,
-  };
-}
-/** The disclosure strip:
  * licence/brokerage line (only when supplied). Fit-boxed into availableH with
  * the same fitBlockLines machinery as every other slot — never clips into the
  * canvas edge. Returns null when there is truly nothing to render (EHO off AND
