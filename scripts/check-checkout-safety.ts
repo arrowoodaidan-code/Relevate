@@ -172,6 +172,38 @@ for (const route of ["src/routes/pricing.tsx", "src/routes/index.tsx"]) {
   );
 }
 
+/* ---- 12. serve.ts is the production server: /api/* is served by ITS OWN handlers. ---- */
+const serve = read("serve.ts");
+const serveCode = stripComments(serve);
+check(
+  /from "\.\/src\/lib\/price-keys"/.test(serveCode) && /PRICE_KEYS/.test(serveCode),
+  "serve.ts takes the plan keys from src/lib/price-keys.ts",
+);
+check(
+  !/\[\s*"starter_monthly"\s*,\s*"pro"\s*,\s*"team"\s*\]/.test(serveCode),
+  "serve.ts no longer hardcodes the three monthly keys (the reason the live host rejected yearly)",
+);
+check(
+  /resolvePublicBaseUrl\(/.test(serveCode) && /isPublicHostname\(SITE_URL\)/.test(serveCode),
+  "serve.ts resolves the post-payment redirect through src/lib/public-url.ts, with the published site URL as last resort",
+);
+check(
+  !/\$\{proto\}:\/\/\$\{/.test(serveCode) && !/:\/\/\$\{req\.headers/.test(serveCode),
+  "serve.ts never builds the redirect from the request's (internal) Host header",
+);
+check(
+  /Cannot determine a public URL for the post-payment redirect/.test(serveCode),
+  "serve.ts refuses checkout — before creating a session — when no public base URL exists",
+);
+check(
+  /userTier === "demo"/.test(serveCode) && /SELECT subscription_tier FROM users WHERE id = \$\{bodyUserId\}/.test(serveCode),
+  "serve.ts refuses a demo account whichever way the user id arrives (session cookie or request body)",
+);
+check(
+  /successUrl: `\$\{baseUrl\}\/app\/subscription\/success`/.test(serveCode),
+  "serve.ts echoes the resolved success/cancel URLs so the redirect is verifiable by curl",
+);
+
 /* Report. */
 for (const line of notes) console.log(line);
 if (failures.length) {
