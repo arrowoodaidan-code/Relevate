@@ -10,8 +10,9 @@
  * refuses to release it, so we use a distinct key for the $39 Starter. The `pro`/`team`
  * keys are unchanged and are referenced directly. The three `_annual` keys are all free.
  *
- * Annual amounts are created in scripts/setup-stripe-subscriptions.ts as exactly
- * 12 × the monthly amount (no discount).
+ * Annual amounts live in src/lib/stripe-prices.ts (the price record the setup script creates and
+ * checkout charges): 7% off 12 × the monthly list price, exact cents — $435.24 / $881.64 /
+ * $2,220.84. They are NOT 12 × monthly (an earlier note here said so; that was wrong).
  */
 export const PRICE_KEYS = [
   "starter_monthly",
