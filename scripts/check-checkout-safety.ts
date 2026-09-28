@@ -247,6 +247,10 @@ check(
   "the success page gives the buyer a real way to get unblocked if activation does not happen",
 );
 
+check(
+  /configuredBase \?\? canonicalBase \?\? resolvePublicBaseUrl\(\{ headers: req\.headers \}\)/.test(serveCode),
+  "serve.ts prefers a configured/canonical public URL over the request's own (preview) host",
+);
 /* Report. */
 for (const line of notes) console.log(line);
 if (failures.length) {
