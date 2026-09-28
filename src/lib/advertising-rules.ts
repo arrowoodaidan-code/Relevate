@@ -834,12 +834,12 @@ const JURISDICTION_LABELS: Record<string, string> = {
   product: "Product policy",
   "platform:meta": "Meta platform policy",
   "platform:google": "Google Ads policy",
-  "state:sc": "South Carolina",
   "state:ca": "California",
   "state:fl": "Florida",
   "state:tx": "Texas",
+  "state:sc": "South Carolina",
   "state:ny": "New York (not verified)",
-  "state:all-other": "All states other than CA, FL and TX (not verified)",
+  "state:all-other": "All states other than CA, FL, TX and SC (not verified)",
 };
 
 export function jurisdictionLabel(jurisdiction: string): string {
@@ -870,18 +870,6 @@ export function ruleCondition(rule: AdvertisingRule): string | null {
  * `requirement` text, so new rules render with no UI change.
  */
 const RULE_SUMMARIES: Record<string, string> = {
-  "sc-40-57-135e2-brokerage-name":
-    "Every ad of your services must identify the FULL NAME of your brokerage firm (online ads may link to the firm's homepage; trade/franchise names must also reveal the franchisee or trade-name holder).",
-  "sc-40-57-135e1-listing-ack":
-    "Advertising someone else's listing requires the listing firm's written authorization AND a clear, conspicuous acknowledgment of the listing brokerage firm in the ad.",
-  "sc-40-57-360-team-advertising":
-    "Team ads must carry the team name AND the brokerage firm's full name, conspicuously; team names may not imply a separate brokerage (no 'realty'/'real estate'/'realtors' in team names).",
-  "sc-40-57-710-misleading-ads":
-    "No false or misleading promises, and no continued course of misrepresentation, through any advertising medium — grounds for discipline.",
-  "sc-31-21-40-fair-housing-ad":
-    "South Carolina Fair Housing: no ad may indicate a preference, limitation or discrimination on race, color, religion, sex, handicap, familial status or national origin.",
-  "sc-no-license-number-no-phone":
-    "Internal: do NOT add a licence-number or telephone-number display requirement for SC agent ads — none exists in Title 40 Ch 57 or Regs. Ch 105 (a negative finding, like TX).",
   "fha-3604c-no-discriminatory-ads":
     "Nothing in the ad may indicate a preference, limitation or discrimination based on a protected class.",
   "cfr100-75-flyers-explicitly-covered":
@@ -930,6 +918,19 @@ const RULE_SUMMARIES: Record<string, string> = {
     "Claims must be truthful and substantiated before you make them — you are liable for claims in your ads, including AI-generated copy.",
   "no-manufactured-urgency":
     "No false urgency or scarcity (\u201cact now\u201d, \u201conly N left\u201d) unless you have a real deadline.",
+  // SC (pass 4, v2.0.0) — faithful compressions, never stronger than the rules.
+  "sc-40-57-135e2-brokerage-name":
+    "South Carolina: every advertisement must identify the full name of the brokerage firm the licensee is employed by and supervised under; electronic ads may link to the firm's homepage instead.",
+  "sc-40-57-135e1-listing-ack":
+    "South Carolina: advertising another brokerage's listing requires the listing brokerage's written authorization and a clear, conspicuous acknowledgment of the listing brokerage in the ad.",
+  "sc-40-57-360-team-advertising":
+    "South Carolina: team advertising must carry the team name AND the full brokerage firm name, displayed conspicuously and prominently.",
+  "sc-40-57-710-misleading-ads":
+    "South Carolina: no false or misleading promises through any medium of advertising; continued misrepresentation is grounds for discipline.",
+  "sc-31-21-40-fair-housing-ad":
+    "South Carolina Fair Housing Act: no ad may indicate a preference, limitation or discrimination based on a protected class.",
+  "sc-no-license-number-no-phone":
+    "South Carolina has NO licence-number or telephone-number requirement for agent advertising — never render either as required.",
 };
 
 export function ruleSummary(rule: AdvertisingRule): string {
@@ -968,17 +969,20 @@ export const EHO_LEGEND = "Equal Housing Opportunity";
  * declares NAR membership (nar-realtor-mark-usage). Never auto-inserted. */
 export const REALTOR_MARK = "REALTOR\u00AE";
 
-/** Jurisdictions with VERIFIED advertising rules (v1.1.0 data). Every other
+/** Jurisdictions with VERIFIED advertising rules (v2.0.0 data). Every other
  * state is unverified (other-states-candidate): fields are offered, no
  * requirement is claimed, nothing is enforced.
  *
- * HONESTY NOTE — TX is verified at the RULE level only (22 TAC 535.155, see the
- * five tx-* rules), it is NOT yet implemented in the render path:
- * `disclosureWarnings()` below has FL and CA branches, and there is no TX branch,
- * so no TX-specific warning or layout rule fires yet. The two TX rendering
- * requirements still to build are (1) broker name at least HALF the size of the
- * largest contact info, and (2) NO licence-number field (TX agent ads have no
- * licence-number requirement). Nothing here claims TX rendering is enforced. */
+ * HONESTY NOTE — SC is verified at the RULE level (pass 4: six state:sc rules
+ * read verbatim from primary sources) AND implemented in the render path:
+ * `disclosureWarnings()` warns when an SC ad would ship without the brokerage
+ * firm name (40-57-135(E)(2)) and never demands a licence or phone number
+ * (sc-no-license-number-no-phone). The brokerage-name RENDERING itself is
+ * generic: any supplied brokerageName prints (see branded-templates
+ * disclosureSegments) — verified by the measured SC gate in
+ * scripts/verify-sc-disclosure.ts. Product scope is federal + SC only (owner
+ * directive): other states' rules carry hidden-2026-09 in the data and their
+ * state-code rendering is gated off by PRODUCT_SCOPE_STATES below. */
 export const VERIFIED_JURISDICTIONS = ["FL", "CA", "TX", "SC"] as const;
 
 /* ------------------------------------------------------------------ */
@@ -1054,6 +1058,14 @@ const cleanStr = (v?: string) => (typeof v === "string" ? v.trim() : "");
  *    licence-number messaging: TX has NO licence-number requirement for agent
  *    advertising (tx-535-155-no-license-number) - silence about numbers is by
  *    design, not an oversight.
+ *  - SC (pass 4, verified verbatim): warning when the brokerage firm name is
+ *    missing — S.C. Code \u00A740-57-135(E)(2)(a) requires every advertisement to
+ *    identify the full name of the brokerage firm (electronic ads may instead
+ *    link to the firm's homepage, (E)(2)(b)). NO licence-number or
+ *    telephone-number message is ever produced for SC
+ *    (sc-no-license-number-no-phone: neither Title 40 Chapter 57 nor Regs
+ *    Chapter 105 requires either on an agent's ad) — silence about numbers is
+ *    by design, not an oversight.
  *  - Any other state -> no requirement claimed, no warning.
  */
 export function disclosureWarnings(
@@ -1102,6 +1114,13 @@ export function disclosureWarnings(
           "Texas advertising must include, in a readily noticeable location: the name of the licence holder or team placing the ad, and the broker's name (22 TAC \u00A7535.155(a)). Missing from this render: " + missing.join("; ") + ". Texas does not require a licence number on agent advertising, so none is rendered.",
       });
     }
+  }
+  if (state === "SC" && !cleanStr(input.brokerageName)) {
+    out.push({
+      level: "warning",
+      message:
+        "South Carolina advertising must identify the full name of the real estate brokerage firm the licensee is employed by and supervised under (S.C. Code \u00A740-57-135(E)(2)(a); electronic ads may instead link to the firm's homepage). This render is missing the brokerage name - add it under Brokerage / Company so the asset carries the required disclosure. South Carolina does NOT require a licence number or a telephone number on the asset. (This is a rule citation, not a compliance certification.)",
+    });
   }
   return out;
 }

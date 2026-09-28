@@ -149,8 +149,15 @@ check("warnings: TX out of scope -> no state warnings", disclosureWarnings({ jur
 check("warnings: FL out of scope -> no brokerage warning", disclosureWarnings({ jurisdiction: "FL", agentName: "Dana Ruiz" }).length === 0);
 check("warnings: CA out of scope -> no info message", disclosureWarnings({ jurisdiction: "CA", agentName: "Dana Ruiz", agentLicense: "x" }).length === 0);
 check("warnings: GA -> no state warnings", disclosureWarnings({ jurisdiction: "GA", agentName: "Dana Ruiz" }).length === 0);
-check("warnings: SC (in scope) -> no render-branch warnings (SC lives in the checklist data)",
-  disclosureWarnings({ jurisdiction: "SC", agentName: "Dana Ruiz" }).length === 0);
+// SC (in scope) has exactly ONE render-time honesty branch since task 524f8e4b
+// (PR #28): a missing brokerage name warns, citing S.C. Code 40-57-135(E)(2);
+// with the brokerage supplied there are no warnings. SC still never leaks TX/FL
+// behaviour (no licence suppression, no half-size plan — verify-tx-half-size.ts).
+const scWarn = disclosureWarnings({ jurisdiction: "SC", agentName: "Dana Ruiz" });
+check("warnings: SC (in scope) -> exactly the 40-57-135(E)(2) missing-brokerage warning, none when supplied (task 524f8e4b)",
+  scWarn.length === 1 && scWarn[0].message.includes("40-57-135")
+    && disclosureWarnings({ jurisdiction: "SC", agentName: "Dana Ruiz", brokerageName: "Ruiz Residential Realty" }).length === 0,
+  JSON.stringify(scWarn));
 
 // ---- 7. Fair Housing guardrail intact ----------------------------------------
 const flagged = scanFairHousing("This family-friendly home is ideal for a young couple — no Section 8, adult living preferred.");
