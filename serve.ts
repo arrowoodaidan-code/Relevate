@@ -27,6 +27,10 @@ import { createTemplate, deleteTemplate, getTemplate, listTemplates, updateTempl
 import { renderDesignDoc } from "./src/lib/render-design";
 import type { DesignDoc } from "./src/lib/design";
 import { createDesignTemplate, deleteDesignTemplate, getDesignTemplate, listDesignTemplates, updateDesignTemplate, validateDesignTemplatePayload } from "./src/lib/design-templates";
+import { PRICE_KEYS } from "./src/lib/price-keys";
+import { isPublicHostname, resolvePublicBaseUrl, stripHost } from "./src/lib/public-url";
+import { SITE_URL } from "./src/lib/seo";
+import { sql as neonSql } from "./src/db";
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
@@ -864,7 +868,10 @@ for (let attempt = 1; ; attempt++) {
               priceLookupKey?: string;
               userId?: string;
             };
-            const validKeys = ["starter_monthly", "pro", "team"];
+            /* All six keys (monthly + yearly) come from src/lib/price-keys.ts — the single
+             * source of truth this file must not duplicate. Hardcoding three keys here was the
+             * defect that made the live host reject the yearly plans (measured 2026-09-23). */
+            const validKeys: readonly string[] = PRICE_KEYS;
             if (!priceLookupKey || !validKeys.includes(priceLookupKey)) {
               return Response.json(
                 {
@@ -878,8 +885,18 @@ for (let attempt = 1; ; attempt++) {
             const authedUser = await authenticate(req);
             const userId = authedUser?.id ?? bodyUserId;
 
-            // Block checkout for demo accounts — never bills, never creates a Stripe customer
-            if (authedUser?.subscription_tier === "demo") {
+            /* Block checkout for demo accounts — never bills, never creates a Stripe customer.
+             * The tier is resolved from the session cookie when there is one, and otherwise from
+             * the user id in the body: a caller who names a demo account must be refused too. The
+             * cookie-only check could be bypassed by posting a user id (measured 2026-09-23). */
+            let userTier: string | null = authedUser?.subscription_tier ?? null;
+            if (!userTier && bodyUserId) {
+              const rows = await neonSql()`
+                SELECT subscription_tier FROM users WHERE id = ${bodyUserId} LIMIT 1`;
+              if (rows.length > 0) userTier = String(rows[0].subscription_tier);
+            }
+
+            if (userTier === "demo") {
               return Response.json(
                 {
                   success: false,
@@ -907,16 +924,43 @@ for (let attempt = 1; ; attempt++) {
             if (prices.data.length === 0) {
               return Response.json(
                 {
-                  error: `No active Stripe price found with lookup_key: "${priceLookupKey}". Ensure prices are created in the Stripe dashboard with lookup_keys matching: starter_monthly, pro, team.`,
+                  error: `No active Stripe price found with lookup_key: "${priceLookupKey}". Ensure prices are created in the Stripe dashboard with lookup_keys matching: ${PRICE_KEYS.join(", ")}.`,
                 },
                 { status: 400 },
               );
             }
 
             const priceId = prices.data[0].id;
-            const proto =
-              (req.headers.get("x-forwarded-proto") as string | null) ?? "http";
-            const baseUrl = `${proto}://${req.headers.get("host") ?? "localhost:3000"}`;
+            /* P0 (2026-09-23): this used to be `${proto}://${req.headers.get("host")}`, with proto
+             * defaulting to "http". On the live host the request arrives with the platform's
+             * INTERNAL machine name as Host (ip-10-110-83-102.us-west-2.prod.aws.beamlit.net), so
+             * every session carried a success_url with no public DNS record and a paying customer
+             * was stranded. Resolution now goes through src/lib/public-url.ts: a configured public
+             * base URL, then the request's own forwarded host if it is public, and finally this
+             * site's own published URL (src/lib/seo.ts) as a last resort — and if none of those is
+             * a public hostname, checkout is refused BEFORE a session exists, so no money moves. */
+            const resolved = resolvePublicBaseUrl({ headers: req.headers });
+            const fallbackBase = isPublicHostname(SITE_URL) ? `https://${stripHost(SITE_URL)}` : null;
+            const baseUrl = resolved ?? fallbackBase;
+            if (!baseUrl) {
+              return Response.json(
+                {
+                  error:
+                    "Cannot determine a public URL for the post-payment redirect, so checkout was " +
+                    "not started and nothing has been charged. Set PUBLIC_APP_URL to this site's " +
+                    "public address and retry.",
+                },
+                { status: 500 },
+              );
+            }
+            if (!resolved) {
+              console.warn(
+                "[team-site] checkout: request arrived on a non-public host; using the published site URL",
+                baseUrl,
+                "host:",
+                req.headers.get("host"),
+              );
+            }
 
             const sessionParams: Stripe.Checkout.SessionCreateParams = {
               mode: "subscription",
@@ -933,7 +977,15 @@ for (let attempt = 1; ; attempt++) {
             }
 
             const session = await stripe.checkout.sessions.create(sessionParams);
-            return Response.json({ url: session.url! });
+            /* `successUrl`/`cancelUrl` are echoed back so the post-payment destination can be
+             * verified from outside without reading the session back from Stripe. They are our own
+             * public URLs, not secrets — and a checkout that cannot state where it returns the
+             * buyer should not be taken. */
+            return Response.json({
+              url: session.url!,
+              successUrl: `${baseUrl}/app/subscription/success`,
+              cancelUrl: `${baseUrl}/app/subscription/cancel`,
+            });
           } catch (error: any) {
             console.error("[team-site] checkout failed", error);
             return Response.json(

@@ -34,14 +34,19 @@ function SubscriptionSuccessPage() {
         </div>
 
         <h1 className="animate-fade-in-down font-serif text-3xl font-bold text-emerald-50 sm:text-4xl">
-          Welcome to Relevate!
+          Thanks — your payment went through
         </h1>
 
         <p className="mt-6 animate-fade-in-up text-lg leading-relaxed text-emerald-200/80">
-          Your subscription is active. You now have full access to Relevate's
-          AI-powered marketing tools — generate property descriptions, open house
-          flyers, social media posts, email campaigns, and listing summaries in
-          seconds.
+          We&rsquo;re finishing your Relevate account now. You&rsquo;ll normally
+          have full access within a few minutes — if the dashboard still looks
+          locked after that, refresh this page. Still locked? Reply to your Stripe
+          receipt and we&rsquo;ll activate your account for you.
+        </p>
+
+        <p className="mt-4 animate-fade-in-up text-base leading-relaxed text-emerald-200/70">
+          Sign in with the email address you used at checkout — that&rsquo;s how we
+          match your payment to your account.
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -55,8 +60,9 @@ function SubscriptionSuccessPage() {
         </div>
 
         <p className="mt-8 text-sm text-emerald-400/50">
-          A confirmation email will arrive shortly. If you have any questions,
-          reach out to our support team.
+          Your Stripe receipt is your confirmation — we don&rsquo;t send a separate
+          confirmation email. Any question about your plan? Reply to that receipt
+          and it reaches us.
         </p>
       </main>
     </div>
