@@ -40,6 +40,10 @@ const KEY_ORDER = [
   "accessed",
   "notes",
   "confidence",
+  // v2.0.0 (2026-09-23): the researcher's out-of-scope marker — present on
+  // hidden rules ("hidden-2026-09"), absent on product-visible ones. Optional
+  // like `notes`. LAST in key order (matches the JSON).
+  "product_scope",
 ];
 
 function valueLines(key: string, value: unknown, indent: string): string[] {
@@ -65,8 +69,9 @@ out.push("");
 out.push("export const ADVERTISING_RULES: AdvertisingRule[] = [");
 for (const rule of data.rules) {
   const keys = Object.keys(rule);
-  // `notes` is optional in the AdvertisingRule interface (2 of the 24 rules omit it).
-  const missing = KEY_ORDER.filter((k) => k !== "notes" && !keys.includes(k));
+  // `notes` and `product_scope` are optional in the AdvertisingRule interface
+  // (some rules omit them; v2.0.0 adds product_scope only on hidden rules).
+  const missing = KEY_ORDER.filter((k) => k !== "notes" && k !== "product_scope" && !keys.includes(k));
   const extra = keys.filter((k) => !KEY_ORDER.includes(k));
   if (missing.length || extra.length) {
     throw new Error(

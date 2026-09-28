@@ -4,6 +4,9 @@ import {
   ADVERTISING_RULES_META,
   COMPLIANCE_PANEL_DISCLAIMERS,
   FORMAT_LABEL,
+  PRODUCT_ADVERTISING_RULES,
+  PRODUCT_SCOPE_LABEL,
+  SC_RULES_COUNT,
   buildChecklist,
   jurisdictionLabel,
   ruleCondition,
@@ -51,7 +54,11 @@ interface Props {
 }
 
 export function ComplianceChecklistPanel({ format, className }: Props) {
-  const checklist = useMemo(() => buildChecklist(ADVERTISING_RULES, format), [format]);
+  // PRODUCT SCOPE (owner directive 2026-09-23): the panel renders only rules
+  // inside the product scope (federal + South Carolina) — filtered data-side
+  // via the researcher's product_scope marker, so re-scopes and new SC rules
+  // flow in with NO UI change. Out-of-scope rules stay in the data, invisible.
+  const checklist = useMemo(() => buildChecklist(PRODUCT_ADVERTISING_RULES, format), [format]);
 
   const [open, setOpen] = useState(true);
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
@@ -117,9 +124,12 @@ export function ComplianceChecklistPanel({ format, className }: Props) {
             </span>
           </h3>
           <p className="mt-0.5 text-[11px] text-emerald-300/60" data-compliance-meta>
-            {shownCount} of {checklist.totalRules} researched rules apply to this{" "}
-            {FORMAT_LABEL[format]} · rules v{ADVERTISING_RULES_META.version} · researched{" "}
+            {shownCount} of {ADVERTISING_RULES.length} researched rules apply to this{" "}
+            {FORMAT_LABEL[format]} · scope: {PRODUCT_SCOPE_LABEL} · rules v{ADVERTISING_RULES_META.version} · researched{" "}
             {ADVERTISING_RULES_META.generated} · {tickedCount} ticked by you
+            {SC_RULES_COUNT === 0
+              ? " · South Carolina: no state rules captured yet — research in progress, this is not a compliance claim"
+              : ` · South Carolina: ${SC_RULES_COUNT} rule${SC_RULES_COUNT === 1 ? "" : "s"} in scope`}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

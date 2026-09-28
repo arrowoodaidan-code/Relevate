@@ -75,6 +75,10 @@ export interface AdvertisingRule {
   accessed: string;
   notes?: string;
   confidence: RuleConfidence;
+  /** v2.0.0 researcher's out-of-scope marker: "hidden-2026-09" on rules the
+   *  product must NOT display or use (other states + non-law items). Absent =
+   *  product-visible. Drives isRuleInProductScope — never hardcode rule IDs. */
+  product_scope?: string;
 }
 
 export interface AdvertisingRulesMeta {
@@ -92,13 +96,13 @@ export interface AdvertisingRulesMeta {
 
 export const ADVERTISING_RULES_META: AdvertisingRulesMeta = {
   name: "relevate-advertising-rules",
-  version: "1.1.0",
+  version: "2.0.0",
   generated: "2026-09-16",
   researcher: "agent-compliance-researcher",
   disclaimer:
     "Research aid for product rule engine. NOT legal advice; not exhaustive or authoritative. Broker and state commission have final say. Rules marked confidence=unverified must NOT be enforced as hard requirements until verified.",
   access_note:
-    "All source_url entries accessed 2026-09-16 unless overridden per-entry. v1.1.0: TX promoted to verified (22 TAC 535.155). Pass-3 follow-up 2026-09-23 (schema unchanged, still 24 rules / 18 verified / 6 unverified): eho-logo-asset-provenance RESOLVED to verified/GO-conditional (NAR publish page read verbatim); mls-attribution verdict recorded (contractual per-MLS, stays unverified); ny-dos-candidate stays unverified (19 NYCRR 175.25 body text not captured from a primary source; statute map verified from archived nysenate.gov pages). JSON changed -> engineer MUST re-run scripts/sync-advertising-rules.ts before next publish (byte-identity gate).",
+    "All source_url entries accessed 2026-09-16 unless overridden per-entry. v1.1.0: TX promoted to verified (22 TAC 535.155). v2.0.0 (2026-09-23, pass 4): SOUTH CAROLINA added - 6 new state:sc rules, all verified from primary sources read verbatim 2026-09-23; counts corrected to the true values: pre-pass-4 data was 24 rules, 19 verified / 5 unverified (the previous access_note claimed 18/6; stale, fixed); every non-federal, non-SC rule now carries product_scope='hidden-2026-09' (kept for future use, hidden from the product: TX, FL, CA, NY, NAR, MLS, Meta, Google, product, other-states); federal rules re-confirmed live 2026-09-23 (LII 42/3604, FTC, NAR = HTTP 200; eCFR section pages 200 - 100.75 'flyers, brochures' phrase present; eCFR XML API returned 406 today - wording unchanged from pass 1 verbatim quotes). JSON changed -> engineer MUST run scripts/sync-advertising-rules.ts before next publish (byte-identity gate).",
 };
 
 export const ADVERTISING_RULES: AdvertisingRule[] = [
@@ -255,6 +259,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "Landing page verified with captured controlling quote; full manual not read in-session (lower confidence on manual-internal specifics).",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "ca-10140-6-license-disclosure",
@@ -273,6 +278,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "HTTP 200; text quoted in research notes. Applicability of (b)(1) to a given flyer is broker-confirmable ('solicitation materials intended to be the first point of contact').",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "fl-61j2-10-025-brokerage-name",
@@ -291,6 +297,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "Rule text file: https://www.flrules.org/gateway/readFile.asp?sid=0&tid=3517431&type=1&file=61J2-10.025.doc (HTTP 200; text extracted).",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "fl-61j2-10-025-internet-adjacency",
@@ -307,6 +314,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     accessed: "2026-09-16",
     notes: "Layout-specific; the design-engineer should implement a grouped 'disclosure strip'.",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "fl-61j2-10-025-no-false-advertising",
@@ -321,6 +329,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     source_url: "https://www.flrules.org/gateway/ruleno.asp?id=61J2-10.025",
     accessed: "2026-09-16",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "tx-535-155a-name-and-broker",
@@ -339,6 +348,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "Citation correction: an earlier draft cited 22 TAC 535.153 for Texas advertising; 535.153 is 'Violating an Exclusive Agency' and is NOT the advertising rule. Related: 535.154 (alternate/team/assumed business names - team names must end 'team'/'group' and be registered before use); 535.155(b) defines 'advertisement' (covers publications, brochures, radio/TV, email, text, social media, Internet, stationery, cards, displays, signs, billboards; excludes communications to current clients and directional signs with only broker name/logo).",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "tx-535-155a-half-size",
@@ -355,6 +365,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     accessed: "2026-09-16",
     notes: "Was mis-cited as 535.153 in an earlier draft; correct rule is 535.155(a).",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "tx-535-155e-social-profile",
@@ -372,6 +383,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "This is an allowance, not a relaxation of tx-535-155a-name-and-broker; the profile page must actually carry the disclosures and be directly linked from the post/text.",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "tx-535-155f-misleading-list",
@@ -389,6 +401,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     accessed: "2026-09-16",
     notes: "Itemized from the rule text; the opening clause is the material-facts catch-all.",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "tx-535-155-no-license-number",
@@ -407,6 +420,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "Design-critical negative finding - prevents inventing a requirement. Mirrors the cfr109-status-do-not-cite pattern.",
     confidence: "verified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "ny-dos-candidate",
@@ -426,6 +440,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "UNVERIFIED - do not ship as requirement. Verified facts: (1) RPL Art 12-A currently contains NO advertising-disclosure section (archived nysenate.gov pages, 2021-01-25 snapshots; also 2025-11-14 snapshot of RPP/442-E exists); (2) statutory authority for DOS ad rules sits in RPL 442-h 'Rules of the secretary of state'; (3) NYCRR 175.25 'Advertising' exists per Westlaw govt reprint. Blocked: dos.ny.gov (Cloudflare), nysenate.gov (Turnstile), OpenLeg API (key req.), leginfo (dead). Evidence: /home/team/shared/compliance/ny-dos-cloudflare-2026-09-17.png and PASS3-DELTA-2026-09-23.md.",
     confidence: "unverified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "other-states-candidate",
@@ -442,6 +457,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "Explicitly named unverified jurisdictions: NY, all others (TX moved to verified on 2026-09-16 via 22 TAC 535.155).",
     confidence: "unverified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "mls-attribution",
@@ -459,6 +475,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "UNVERIFIED per-MLS - VERDICT 2026-09-23: IDX/MLS attribution is CONTRACTUAL per-MLS, not a citable universal rule. Each MLS sets its own IDX/display rules (adopted from NAR's model IDX policy) and each broker agrees to them contractually via participation/IDX agreements; there is no national statute to cite, and no single rule text applies to all agents. NAR IDX policy URLs re-probed 2026-09-23 (nar.realtor/policy-news/internet-data-exchange-idx-policy and .../internet-data-exchange-idx) both returned HTTP 404, so a live NAR model-policy text could not be captured to cite. Product treatment stands: optional agent-confirmable attribution line ('Source: {MLS}') as best practice, labelled agent-confirmable, NEVER presented as a legal requirement; a tool that cannot know the user's MLS must not enforce per-MLS rules. Candidate pages to read if per-MLS support is ever built (HTTP 200 at 2026-09-16 access, text unread): Bright MLS https://www.brightmls.com/about/legal/rules; California Regional MLS https://www.crmls.org/legal/rules; Midwest Real Estate Data https://www.mredllc.com/.",
     confidence: "unverified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "meta-special-ad-category",
@@ -477,6 +494,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "URL returned HTTP 404 at access; pass-2 also got HTTP 400 from business.facebook.com/help/... - re-verify a live Meta help URL before shipping citation. Enforcement risk: ad rejection/account limits. UNVERIFIED citation.",
     confidence: "unverified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "google-housing-ads",
@@ -493,6 +511,7 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     notes:
       "HTTP 404 at access for answer/2465303; pass-2 also got HTTP 404 for answer/1581051 - reverify a live Google Ads policy URL. UNVERIFIED citation.",
     confidence: "unverified",
+    product_scope: "hidden-2026-09",
   },
   {
     id: "ftc-truth-in-advertising",
@@ -523,6 +542,122 @@ export const ADVERTISING_RULES: AdvertisingRule[] = [
     source_url: "n/a",
     accessed: "2026-09-16",
     notes: "Product behavior rule.",
+    confidence: "verified",
+    product_scope: "hidden-2026-09",
+  },
+  {
+    id: "sc-40-57-135e2-brokerage-name",
+    jurisdiction: "state:sc",
+    surface: ["flyer_footer", "social_footer", "email", "web_render"],
+    type: "must_appear",
+    requirement:
+      "Every advertisement of a licensee's real estate services or of real estate owned in whole or in part by another person must identify the FULL NAME of the real estate brokerage firm with which the licensee is employed and supervised. If advertising on the Internet or in another electronic media, the requirement may be met by including a link from the advertisement to the homepage of the brokerage firm or property management company. If the brokerage firm operates under a trade or franchise name, the identity of the franchisee or holder of the trade name must also be revealed.",
+    why:
+      "S.C. Code 40-57-135(E)(2)(a)-(b) and (E)(3), verified verbatim from the official scstatehouse.gov code page 2026-09-23: '(2) When advertising his real estate services or marketing real estate owned, in whole or in part, by another person in any medium, a licensee clearly must: (a) Identify the full name of the real estate brokerage firm with which the licensee is employed and supervised in accordance with regulations. (b) If advertising on the Internet or in another electronic media, the above requirements may be met by including a link from the advertisement to the homepage of the brokerage firm or property management company. (3) If a real estate brokerage firm operates under a trade or franchise name, the identity of the franchisee or holder of the trade name clearly must be revealed.'",
+    satisfied_by:
+      "SC disclosure block on native flyer/social templates: full brokerage-firm name line mandatory on all SC renders (same strip as FL/TX but showing the full firm name, not just broker personal name); product may offer the electronic-media variant (link to brokerage homepage) ONLY for internet/media surfaces, never for printed flyers; if user supplies a trade/franchise name, add 'doing business as' identity line.",
+    severity: "hard",
+    source_url: "https://www.scstatehouse.gov/code/t40c057.php",
+    accessed: "2026-09-23",
+    notes:
+      "SC's core ad-disclosure statute. Editor's note on the code page: 2024 Act No. 204 (H.4754) section 3 rewrote/amended the section; 40-57-135(E)(2) took effect 12 months after ratification (i.e., current). Full section read inline in-session.",
+    confidence: "verified",
+  },
+  {
+    id: "sc-40-57-135e1-listing-ack",
+    jurisdiction: "state:sc",
+    surface: ["property_description", "listing_summary", "flyer_footer", "social_caption", "email_campaign"],
+    type: "must_appear",
+    requirement:
+      "A licensee who is NOT associated with the listing brokerage may advertise real estate owned by another person only with written authorization from the listing brokerage firm AND must acknowledge the listing brokerage firm in the advertisement in a clear and conspicuous way. A licensee may not advertise, market, or offer to conduct a real estate transaction involving another's real estate without a written listing agreement (or sublease authorization) first being in place.",
+    why:
+      "S.C. Code 40-57-135(E)(1), verified verbatim from scstatehouse.gov 2026-09-23: 'Licensees not associated with the listing brokerage firm may advertise real estate owned, in whole or in part, by another person only if they have written authorization from the listing brokerage firm and acknowledge the listing brokerage firm in the advertisement in a clear and conspicuous way.'",
+    satisfied_by:
+      "Guardrail: when generating listing marketing, if the user is not the listing agent, require them to supply the listing brokerage name and render it as a clear/conspicuous line; never silently omit the source brokerage.",
+    severity: "hard",
+    source_url: "https://www.scstatehouse.gov/code/t40c057.php",
+    accessed: "2026-09-23",
+    notes:
+      "Mirrors 'advertising another broker's listing'; SC phrasing: written authorization + clear and conspicuous acknowledgment of the listing brokerage in the ad.",
+    confidence: "verified",
+  },
+  {
+    id: "sc-40-57-360-team-advertising",
+    jurisdiction: "state:sc",
+    surface: ["flyer_footer", "social_footer", "email", "web_render"],
+    type: "must_appear",
+    requirement:
+      "Team advertising must contain the team name AND the full name of the real estate brokerage firm displayed in a conspicuous way; the team and its members must display and promote that they are directly connected to the brokerage firm, and the brokerage firm name must be displayed prominently, visibly, and in a meaningful and conspicuous way on all methods of advertising. Team names may not include 'realty', 'real estate', 'realtors', or similar terms suggesting a brokerage, and no team may imply it is a separate entity from the brokerage firm.",
+    why:
+      "S.C. Code 40-57-360(D)-(F), version effective until May 15, 2027, verified verbatim from scstatehouse.gov 2026-09-23: '(D) Team advertising must contain the team name and the full name of the real estate brokerage firm displayed in a conspicuous way. (E) No team may imply that the team is a separate entity from the brokerage firm of its employment. Team names may not include the terms \"realty\", \"real estate\", \"realtors\", or similar terms suggesting a brokerage. (F) The team, and any and all team members, must display and promote that they are directly connected to the brokerage firm under which the team works. The brokerage firm name under which the team works is to be displayed prominently and visibly in a meaningful and conspicuous way on all methods of advertising.'",
+    satisfied_by:
+      "Team-name field validation (block 'realty'/'real estate'/'realtors' in SC team display names); team footer must always include full brokerage-firm name; render broker/team + firm in one conspicuous footer strip.",
+    severity: "hard",
+    source_url: "https://www.scstatehouse.gov/code/t40c057.php",
+    accessed: "2026-09-23",
+    notes:
+      "DATE-AWARE RULE: the code page also prints a second version effective May 15, 2027 (2024 Act No. 204): then (D) requires all team advertising/marketing to contain the full brokerage name AND the team name may not be more than twice the size, prominence, or frequency of the full brokerage-firm name; and (E) requires team names to end in '[team name] team at [name of real estate brokerage firm]'. Product should schedule those constraints for 2027-05-15.",
+    confidence: "verified",
+  },
+  {
+    id: "sc-40-57-710-misleading-ads",
+    jurisdiction: "state:sc",
+    surface: ["property_description", "flyer_text", "social_caption", "email_campaign", "listing_summary"],
+    type: "must_avoid",
+    requirement:
+      "A licensee may be denied a license or disciplined for pursuing 'a continued and flagrant course of misrepresentation' or making 'false and misleading promises through any medium of advertising or otherwise'.",
+    why:
+      "S.C. Code 40-57-710(4), ground for denial/disciplinary action, verified verbatim from scstatehouse.gov 2026-09-23. Full item reads: '(4) pursues a continued and flagrant course of misrepresentation or makes false and misleading promises through any medium of advertising or otherwise'.",
+    satisfied_by:
+      "Same unsubstantiated-claim guardrail as ftc-truth-in-advertising; no invented amenities/facts; no misleading claims of service or value.",
+    severity: "hard",
+    source_url: "https://www.scstatehouse.gov/code/t40c057.php",
+    accessed: "2026-09-23",
+    notes:
+      "Also relevant: 40-57-20 makes it unlawful to advertise or provide services as a broker/associate/property manager without an active, valid license.",
+    confidence: "verified",
+  },
+  {
+    id: "sc-31-21-40-fair-housing-ad",
+    jurisdiction: "state:sc",
+    surface: [
+      "property_description",
+      "flyer_text",
+      "social_caption",
+      "email_campaign",
+      "listing_summary",
+      "image_prompt",
+    ],
+    type: "must_avoid",
+    requirement:
+      "State Fair Housing Act: it is unlawful to make, print, or publish, or cause to be made, printed, or published, any notice, statement, or advertisement with respect to the sale or rental of a dwelling that indicates any preference, limitation, or discrimination based on race, color, religion, sex, handicap, familial status, or national origin, or an intention to make such a preference, limitation, or discrimination.",
+    why:
+      "S.C. Code 31-21-40(3), verified verbatim from scstatehouse.gov 2026-09-23 (full provision read). The state analogue of 42 U.S.C. 3604(c); enforced by the SC Human Affairs Commission (31-21-90 et seq.).",
+    satisfied_by:
+      "Same protected-class guardrail as fha-3604c-no-discriminatory-ads (shared engine flag); no state-specific additional word list (the SC statute tracks the federal classes exactly).",
+    severity: "hard",
+    source_url: "https://www.scstatehouse.gov/code/t31c021.php",
+    accessed: "2026-09-23",
+    notes:
+      "Adds nothing beyond the federal duty; kept so the SC checklist shows the state citation. Enforcement route differs (SC Human Affairs Commission).",
+    confidence: "verified",
+  },
+  {
+    id: "sc-no-license-number-no-phone",
+    jurisdiction: "state:sc",
+    surface: ["rule_engine_design", "flyer_footer", "social_footer"],
+    type: "must_avoid",
+    requirement:
+      "Do NOT add a licence-number or telephone-number requirement for South Carolina AGENT advertising: neither S.C. Code Title 40 Chapter 57 nor S.C. Code Regs. Chapter 105 contains any requirement that a licensee's ad display a licence number or a telephone number. The only contact/phone provisions are record-keeping and commission-notification duties (not ad-content duties).",
+    why:
+      "Verified by absence 2026-09-23: full text of Title 40 Ch 57 read from scstatehouse.gov (the only 'telephone number' mentions are office-change notification to the Commission, 40-57-135, and contact-information-on-file duties for property managers/associates); full text of Chapter 105 regs read from the official scstatehouse codification PDF (regs 105-2..105-14 = timeshare, education providers, disclosure form; the only 'Advertising' regulation is the education-provider course-advertising rule requiring provider/course approval numbers for COURSE ads - not licensee ads).",
+    satisfied_by:
+      "SC disclosure block must NOT render a licence-number or phone-number field as an SC requirement; licence number/phone may only ever be optional user-supplied info, never SC-mandated elements; guard checklist copy against claiming one is required.",
+    severity: "hard",
+    source_url: "https://www.scstatehouse.gov/coderegs/Chapter%20105.pdf",
+    accessed: "2026-09-23",
+    notes:
+      "Design-critical negative finding, mirrors tx-535-155-no-license-number. Text of the education-provider advertising reg read in-session (reg 105-8 'Other Operating Procedures' C. Advertising: course ads must include the provider and course approval number; excludes agent marketing materials).",
     confidence: "verified",
   },
 ];
@@ -699,6 +834,7 @@ const JURISDICTION_LABELS: Record<string, string> = {
   product: "Product policy",
   "platform:meta": "Meta platform policy",
   "platform:google": "Google Ads policy",
+  "state:sc": "South Carolina",
   "state:ca": "California",
   "state:fl": "Florida",
   "state:tx": "Texas",
@@ -734,6 +870,18 @@ export function ruleCondition(rule: AdvertisingRule): string | null {
  * `requirement` text, so new rules render with no UI change.
  */
 const RULE_SUMMARIES: Record<string, string> = {
+  "sc-40-57-135e2-brokerage-name":
+    "Every ad of your services must identify the FULL NAME of your brokerage firm (online ads may link to the firm's homepage; trade/franchise names must also reveal the franchisee or trade-name holder).",
+  "sc-40-57-135e1-listing-ack":
+    "Advertising someone else's listing requires the listing firm's written authorization AND a clear, conspicuous acknowledgment of the listing brokerage firm in the ad.",
+  "sc-40-57-360-team-advertising":
+    "Team ads must carry the team name AND the brokerage firm's full name, conspicuously; team names may not imply a separate brokerage (no 'realty'/'real estate'/'realtors' in team names).",
+  "sc-40-57-710-misleading-ads":
+    "No false or misleading promises, and no continued course of misrepresentation, through any advertising medium — grounds for discipline.",
+  "sc-31-21-40-fair-housing-ad":
+    "South Carolina Fair Housing: no ad may indicate a preference, limitation or discrimination on race, color, religion, sex, handicap, familial status or national origin.",
+  "sc-no-license-number-no-phone":
+    "Internal: do NOT add a licence-number or telephone-number display requirement for SC agent ads — none exists in Title 40 Ch 57 or Regs. Ch 105 (a negative finding, like TX).",
   "fha-3604c-no-discriminatory-ads":
     "Nothing in the ad may indicate a preference, limitation or discrimination based on a protected class.",
   "cfr100-75-flyers-explicitly-covered":
@@ -831,7 +979,52 @@ export const REALTOR_MARK = "REALTOR\u00AE";
  * requirements still to build are (1) broker name at least HALF the size of the
  * largest contact info, and (2) NO licence-number field (TX agent ads have no
  * licence-number requirement). Nothing here claims TX rendering is enforced. */
-export const VERIFIED_JURISDICTIONS = ["FL", "CA", "TX"] as const;
+export const VERIFIED_JURISDICTIONS = ["FL", "CA", "TX", "SC"] as const;
+
+/* ------------------------------------------------------------------ */
+/* PRODUCT SCOPE (owner directive 2026-09-23 + researcher v2.0.0)      */
+/* ------------------------------------------------------------------ */
+/* The product displays and uses ONLY federal + South Carolina rules.  */
+/* The researcher marks out-of-scope rules in the DATA itself: v2.0.0  */
+/* adds product_scope="hidden-2026-09" to every other state's rules    */
+/* and to the non-law items (nar, mls, platform:*, product). So the    */
+/* visibility filter is MARKER-DRIVEN: hidden in the data = hidden in  */
+/* the product, with no code change when the researcher re-scopes.     */
+/*                                                                     */
+/* The marker does not express STATE-CODE behaviour (render branches,  */
+/* warnings keyed on the selector's "TX"/"SC"), so state behaviour is  */
+/* additionally gated by PRODUCT_SCOPE_STATES — today SC only. Texas   */
+/* and California keep their researched rendering code, gated off.     */
+export const PRODUCT_SCOPE_STATES = ["SC"] as const;
+/** Human-readable scope label for UI headers ("scope: federal + South Carolina"). */
+export const PRODUCT_SCOPE_LABEL = "federal + South Carolina";
+/** The rule-data jurisdiction vocabulary for a US state code ("TX" -> "state:tx"). */
+export function stateToRuleJurisdiction(state: string): string {
+  return `state:${(state ?? "").trim().toLowerCase()}`;
+}
+/** Is this US state code inside the product's regulation scope? Accepts any
+ *  case ("SC"/"sc"); empty or non-state values are never in state scope. */
+export function isStateInProductScope(state: string): boolean {
+  const code = (state ?? "").trim().toUpperCase();
+  return (PRODUCT_SCOPE_STATES as readonly string[]).includes(code);
+}
+/** Does this rule belong to the product-visible scope? Driven by the
+ *  researcher's own product_scope marker: any "hidden…" marker removes the
+ *  rule from every product surface; absent marker = visible. State codes and
+ *  federal rules are never special-cased here — the data decides. */
+export function isRuleInProductScope(rule: Pick<AdvertisingRule, "product_scope">): boolean {
+  const marker = (rule.product_scope ?? "").trim();
+  return marker === "" || !marker.toLowerCase().startsWith("hidden");
+}
+/** The product-visible subset of ADVERTISING_RULES. Consumers (checklist
+ *  panel, prompts, warnings) must use THIS, never the raw array. */
+export const PRODUCT_ADVERTISING_RULES: AdvertisingRule[] =
+  ADVERTISING_RULES.filter(isRuleInProductScope);
+/** How many state:sc rules are in the product-visible set. Drives the panel's
+ *  honest SC status line — never a compliance claim. */
+export const SC_RULES_COUNT = PRODUCT_ADVERTISING_RULES.filter(
+  (r) => r.jurisdiction === "state:sc",
+).length;
 
 /** User-supplied disclosure profile - every field optional, never fabricated;
  * an empty field renders NOTHING (no placeholder, no bracket text). */
@@ -868,6 +1061,13 @@ export function disclosureWarnings(
 ): { level: "warning" | "info"; message: string }[] {
   const out: { level: "warning" | "info"; message: string }[] = [];
   const state = cleanStr(input.jurisdiction).toUpperCase();
+  // PRODUCT SCOPE (owner directive 2026-09-23): the state branches below exist
+  // ONLY for states inside the product scope (federal + SC today — see
+  // PRODUCT_SCOPE_STATES). For an out-of-scope state (TX/FL/CA today) the
+  // branch is UNREACHABLE: the researched rule stays in the data (marked
+  // product_scope="hidden-2026-09"), but the product neither claims nor
+  // enforces it. Re-enable via PRODUCT_SCOPE_STATES.
+  if (!isStateInProductScope(state)) return out;
   if (state === "FL" && !cleanStr(input.brokerageName)) {
     out.push({
       level: "warning",
