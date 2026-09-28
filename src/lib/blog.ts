@@ -4,9 +4,12 @@
  * Posts are defined as structured data (not markdown) so the renderer can
  * produce clean, semantic HTML for SEO. Add a new post by appending to the
  * `posts` array; the blog index and sitemap pick it up automatically.
+ *
+ * Discount and promotion claims do NOT belong in post copy: they live in src/lib/promotions.ts,
+ * where an entry must name the Stripe promotion code it refers to, and preflight fails if a code
+ * is advertised without one. 2026-09-28: a launch post offered a code that Stripe had never
+ * created — see the comment on the promotions module.
  */
-
-import { planAmountCents, usdDisplay } from "./pricing-display";
 
 export type ContentBlock =
   | { type: "p"; text: string }
@@ -157,7 +160,7 @@ export const posts: BlogPost[] = [
     slug: "relevate-launches-on-product-hunt",
     title: "Relevate Is Now Live on Product Hunt — AI Marketing for Real Estate Agents",
     excerpt:
-      "We just launched Relevate on Product Hunt: an AI-powered marketing assistant that generates property descriptions, flyers, social posts, email campaigns, and listing summaries in under 60 seconds. Claim 50% off with code LAUNCH50.",
+      "We just launched Relevate on Product Hunt: an AI-powered marketing assistant that generates property descriptions, flyers, social posts, email campaigns, and listing summaries in under 60 seconds.",
     date: "2026-08-11",
     readTime: "4 min read",
     category: "Announcement",
@@ -203,18 +206,6 @@ export const posts: BlogPost[] = [
           "Email campaigns — launch announcements and open house invites that drive showings",
           "Listing summaries — MLS-ready bullets that hit every key selling point",
         ],
-      },
-      { type: "h2", text: "Launch offer: 50% off for 3 months" },
-      {
-        type: "p",
-        text: "To celebrate the launch, we're offering 50% off any plan for your first 3 months. Use code LAUNCH50 at checkout.",
-      },
-      {
-        type: "tip",
-        title: "Launch pricing",
-        // Half of each list price, read from the Stripe price record so this can never
-        // go stale (the old hardcoded Starter figure was still based on the retired $29 price).
-        text: `Starter: ~${usdDisplay(planAmountCents("starter_monthly") / 2)}/mo | Pro: ~${usdDisplay(planAmountCents("pro") / 2)}/mo | Team: ~${usdDisplay(planAmountCents("team") / 2)}/mo for your first 3 months with code LAUNCH50. Cancel anytime.`,
       },
       { type: "h2", text: "What's next" },
       {

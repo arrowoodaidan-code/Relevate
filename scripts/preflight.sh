@@ -22,7 +22,10 @@
 #      advertises must resolve to a real purchase link, and every displayed amount, save
 #      percentage and monthly equivalent must match the Stripe price record exactly (the
 #      annual links existed in Stripe on 2026-09-28 while the code had them empty, so the
-#      yearly toggle advertised a price nobody could pay).
+#      yearly toggle advertised a price nobody could pay). It also enforces that no promotion
+#      code or 2+-digit discount claim appears in src/ or public/ unless src/lib/promotions.ts
+#      declares it with the Stripe promotion-code id, coupon id, percent, duration and terms
+#      (/pricing advertised a launch code on 2026-09-28 that no Stripe coupon backed).
 #
 # On success it prints the branch + HEAD sha it validated, so the publish that
 # follows is traceable to an exact commit.
