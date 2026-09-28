@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { CheckoutUnavailableDialog, Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
-import { readCheckoutIntent, startCheckout, type CheckoutUnavailable } from "~/lib/product-checkout";
+import {
+  checkoutAvailability,
+  readCheckoutIntent,
+  startCheckout,
+  type CheckoutUnavailable,
+} from "~/lib/product-checkout";
 import { annualPriceDisplay, monthlyPriceDisplay } from "~/lib/pricing-display";
 
 export const Route = createFileRoute("/pricing")({
@@ -214,6 +219,11 @@ function PricingPage() {
             {pricingPlans.map((plan, i) => {
               const pricing =
                 billingCycle === "yearly" ? plan.yearly : plan.monthly;
+              /* This page may only present a plan as purchasable when a payment path for it exists
+               * (a Stripe Payment Link, or the API once the live layer is verified). The price stays
+               * on the card either way — it is real — but a plan nobody can buy is labelled, not
+               * given a button that always fails. */
+              const purchasable = checkoutAvailability(pricing.priceLookupKey) !== "none";
               return (
                 <div key={plan.name} className={`animate-on-scroll stagger-${i + 1}`}>
                   <PricingCard
@@ -224,16 +234,29 @@ function PricingPage() {
                     priceSub={pricing.priceSub}
                     highlighted={plan.highlighted}
                     features={plan.features}
-                    onCtaClick={() =>
-                      handleSubscribe(
-                        pricing.priceLookupKey,
-                        `${plan.name} — ${pricing.price}${pricing.period}`,
-                      )
+                    {...(purchasable
+                      ? {
+                          onCtaClick: () =>
+                            handleSubscribe(
+                              pricing.priceLookupKey,
+                              `${plan.name} — ${pricing.price}${pricing.period}`,
+                            ),
+                        }
+                      : {})}
+                    ctaDisabled={!purchasable}
+                    ctaNote={
+                      purchasable
+                        ? undefined
+                        : billingCycle === "yearly"
+                          ? "Yearly billing isn't available on this site yet. Monthly billing is."
+                          : "Subscriptions aren't available on this site yet."
                     }
                     ctaText={
-                      checkoutLoading === pricing.priceLookupKey
-                        ? "Opening checkout…"
-                        : plan.ctaText
+                      !purchasable
+                        ? "Not available yet"
+                        : checkoutLoading === pricing.priceLookupKey
+                          ? "Opening checkout…"
+                          : plan.ctaText
                     }
                   />
                 </div>

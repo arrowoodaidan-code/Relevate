@@ -146,8 +146,8 @@ check(
   `no literal or cross-host URL is assigned to window.location (found: ${assignments.join(" | ")})`,
 );
 check(
-  /from "\.\/price-keys"/.test(checkout) && !/starter_monthly|pro_annual|team_annual/.test(checkout),
-  "plan keys still come from src/lib/price-keys.ts (no local copy)",
+  /from "\.\/price-keys"/.test(checkoutCode),
+  "product-checkout.ts takes its plan keys from src/lib/price-keys.ts",
 );
 
 /* ---- 10. The UI offers only what works on this host. ---- */
@@ -171,6 +171,81 @@ for (const route of ["src/routes/pricing.tsx", "src/routes/index.tsx"]) {
     `${route} handles the unavailable outcome`,
   );
 }
+
+/* ---- 12. serve.ts is the production server: /api/* is served by ITS OWN handlers. ---- */
+const serve = read("serve.ts");
+const serveCode = stripComments(serve);
+check(
+  /from "\.\/src\/lib\/price-keys"/.test(serveCode) && /PRICE_KEYS/.test(serveCode),
+  "serve.ts takes the plan keys from src/lib/price-keys.ts",
+);
+check(
+  !/\[\s*"starter_monthly"\s*,\s*"pro"\s*,\s*"team"\s*\]/.test(serveCode),
+  "serve.ts no longer hardcodes the three monthly keys (the reason the live host rejected yearly)",
+);
+check(
+  /resolvePublicBaseUrl\(/.test(serveCode) && /isPublicHostname\(SITE_URL\)/.test(serveCode),
+  "serve.ts resolves the post-payment redirect through src/lib/public-url.ts, with the published site URL as last resort",
+);
+check(
+  !/\$\{proto\}:\/\/\$\{/.test(serveCode) && !/:\/\/\$\{req\.headers/.test(serveCode),
+  "serve.ts never builds the redirect from the request's (internal) Host header",
+);
+check(
+  /Cannot determine a public URL for the post-payment redirect/.test(serveCode),
+  "serve.ts refuses checkout — before creating a session — when no public base URL exists",
+);
+check(
+  /userTier === "demo"/.test(serveCode) && /SELECT subscription_tier FROM users WHERE id = \$\{bodyUserId\}/.test(serveCode),
+  "serve.ts refuses a demo account whichever way the user id arrives (session cookie or request body)",
+);
+check(
+  /successUrl: `\$\{baseUrl\}\/app\/subscription\/success`/.test(serveCode),
+  "serve.ts echoes the resolved success/cancel URLs so the redirect is verifiable by curl",
+);
+
+/* ---- 13. The three monthly plans are purchasable, and the success page is honest. ---- */
+const links = read("src/lib/payment-links.ts");
+const checkoutCode13 = stripComments(read("src/lib/product-checkout.ts"));
+check(
+  /export const API_CHECKOUT_ENABLED = false/.test(links),
+  "the server-side checkout path stays gated off in the client until a live session is verified to return a public success_url",
+);
+check(
+  /tier === "demo"/.test(checkoutCode13),
+  "a demo account is refused a payable link client-side (with Payment Links this guard is all there is)",
+);
+check(
+  checkoutCode13.includes("paymentLinkUrl") && checkoutCode13.includes('from "./payment-links"'),
+  "product-checkout.ts prefers the Payment Link path before ever calling the API",
+);
+for (const key of ["starter_monthly", "pro", "team"]) {
+  check(
+    new RegExp(`${key}:\\s*"https://buy\\.stripe\\.com/`).test(links),
+    `a live Stripe Payment Link is configured for "${key}"`,
+  );
+}
+check(
+  /starter_annual: ""/.test(links) && /pro_annual: ""/.test(links) && /team_annual: ""/.test(links),
+  "the yearly keys stay unset (so the yearly cycle reads 'Not available yet' rather than failing)",
+);
+const successPage = read("src/routes/app/subscription/success.tsx");
+check(
+  !/confirmation email will arrive/i.test(successPage),
+  "the success page no longer promises a confirmation email we do not send",
+);
+check(
+  !/Your subscription is active\. You now have full access/i.test(successPage),
+  "the success page no longer claims access the buyer may not have yet",
+);
+check(
+  /full access within a few minutes/i.test(successPage),
+  "the success page says what actually happens next, with a time frame",
+);
+check(
+  /Reply to your Stripe receipt|reply to that receipt/i.test(successPage),
+  "the success page gives the buyer a real way to get unblocked if activation does not happen",
+);
 
 /* Report. */
 for (const line of notes) console.log(line);
