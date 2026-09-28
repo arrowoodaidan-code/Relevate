@@ -31,7 +31,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzePhoto, zonePalette } from "./photo-adaptive";
 import { Resvg } from "@resvg/resvg-js";
-import { EHO_LEGEND, REALTOR_MARK } from "./advertising-rules";
+import { EHO_LEGEND, REALTOR_MARK, isStateInProductScope } from "./advertising-rules";
 
 // ---------------------------------------------------------------------------
 // Design tokens (DESIGN-TOKENS.md — bundled Relevate brand)
@@ -577,14 +577,25 @@ function ehoMarkDataUrl(ink: string): string {
 
 /** User-supplied disclosure segments, in strip order. Never fabricates: an
  * empty field contributes nothing. CA licence numbers use the DRE label. */
-function disclosureSegments(input: RenderTemplateInput): string[] {
+function disclosureSegments(input: RenderTemplateInput, opts?: { scopedTx?: boolean }): string[] {
   const segs: string[] = [];
   const state = (input.jurisdiction ?? "").trim().toUpperCase();
-  const licLabel = state === "CA" ? "DRE #" : "License #";
+  // PRODUCT SCOPE (owner directive 2026-09-23): state-specific disclosure
+  // behaviour exists only for in-scope states (federal + SC today). For an
+  // out-of-scope state — TX/FL/CA today — the branches below are UNREACHABLE:
+  // the licence label stays generic, no licence number is suppressed, nothing
+  // state-specific leaks into the strip. The researched rules stay in
+  // advertising-rules.ts (marked product_scope="hidden-2026-09") and re-enable
+  // via PRODUCT_SCOPE_STATES alone.
+  // opts.scopedTx reproduces the #12 in-scope-TX behaviour verbatim for the
+  // preserve-the-math reference path (txFooterPlanForScopedTx) — it is NOT
+  // reachable from the gated product path.
+  const stateScoped = isStateInProductScope(state);
+  const licLabel = stateScoped && state === "CA" ? "DRE #" : "License #";
   // TX (22 TAC 535.155, tx-535-155-no-license-number): Texas has NO
   // licence-number requirement for agent advertising, so the strip never
   // renders one and never implies it is needed. Names only.
-  const licSuppressed = state === "TX";
+  const licSuppressed = state === "TX" && (opts?.scopedTx === true || stateScoped);
   const brokerage = input.brokerageName?.trim();
   if (brokerage) segs.push(brokerage);
   const agentName = input.agentName?.trim();
@@ -643,7 +654,35 @@ export function txFooterPlan(
   fontSize: number,
 ): { brokerSeg: string | null; brokerSize: number; detailText: string; largestPx: number } {
   const segments = disclosureSegments(input);
-  const isTX = (input.jurisdiction ?? "").trim().toUpperCase() === "TX";
+  const largestPx = largestContactPx(input, w);
+  // PRODUCT SCOPE (owner directive 2026-09-23): the TX half-size broker rule
+  // fires only while Texas is inside the product scope. Texas is out of scope
+  // today, so the gated path renders the generic strip — no TX-formatted
+  // broker segment, no half-size plan. The #12 half-size implementation is
+  // preserved verbatim in txFooterPlanForScopedTx and re-enables via
+  // PRODUCT_SCOPE_STATES alone (see advertising-rules.ts).
+  if (!isStateInProductScope((input.jurisdiction ?? "").trim()) || (input.jurisdiction ?? "").trim().toUpperCase() !== "TX") {
+    return {
+      brokerSeg: null,
+      brokerSize: fontSize,
+      detailText: segments.join("  ·  "),
+      largestPx,
+    };
+  }
+  return txFooterPlanForScopedTx(input, w, fontSize);
+}
+
+/** txFooterPlan for a state ASSUMED in scope: the 22 TAC 535.155(a) half-size
+ *  broker implementation from #12, kept verbatim so the verify gate can still
+ *  prove the math stays intact while the scope gate keeps it unreachable for
+ *  out-of-scope states. NOT for direct product use — call txFooterPlan. */
+export function txFooterPlanForScopedTx(
+  input: RenderTemplateInput,
+  w: number,
+  fontSize: number,
+): { brokerSeg: string | null; brokerSize: number; detailText: string; largestPx: number } {
+  const segments = disclosureSegments(input, { scopedTx: true });
+  const isTX = true;
   const brokerSeg = isTX ? segments.find((seg) => seg.startsWith("Broker")) ?? null : null;
   const detailSegs = brokerSeg ? segments.filter((seg) => seg !== brokerSeg) : segments;
   const largestPx = largestContactPx(input, w);
