@@ -3,11 +3,12 @@
  *
  * HOW A BUYER PAYS (rewritten 2026-09-23, task cc757042)
  *   1. If this plan has a Stripe Payment Link (`src/lib/payment-links.ts`), that is the path: it
- *      lives on Stripe's side, so it works even though the live host's `/api/*` layer is stale, and
- *      it can carry the signed-in user's id for reconciliation.
+ *      lives on Stripe's side, so it works independently of the host's `/api/*` layer, and it can
+ *      carry the signed-in user's id for reconciliation.
  *   2. Otherwise, ONLY when `API_CHECKOUT_ENABLED` is true, ask this host's
- *      `/api/create-checkout-session` (see that flag: on the branded host today it produces
- *      success URLs on an internal hostname, so it stays off until verified live).
+ *      `/api/create-checkout-session` (see that flag: its original blocking defect — success URLs
+ *      on an internal hostname — is fixed and verified live on 2026-09-28, but the flag stays off
+ *      until a live session has been read back from Stripe and its public return path followed).
  *   3. Otherwise nothing is offered. That is deliberate: a Subscribe button that takes money and
  *      strands the buyer is worse than no button, and the UI labels the plan "Not available yet".
  *

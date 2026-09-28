@@ -1,18 +1,24 @@
 /**
  * Stripe Payment Links — the money path that SHIPS.
  *
- * WHY THIS EXISTS (2026-09-23, task cc757042)
- * The published `/api/*` layer on relevatelistingassistant.ctonew.app does not run the current
- * repository code, and publishing a new build does not replace it: after publishing main at
+ * WHY THIS EXISTS (2026-09-23, task cc757042 — cause since fixed; current state at the end)
+ * The published `/api/*` layer on relevatelistingassistant.ctonew.app did not run the current
+ * repository code, and publishing a new build did not replace it: after publishing main at
  * `da51621` (which contains the redirect fix) the live layer still
  *   - rejected `pro_annual` ("Must be one of: starter_monthly, pro, team"),
  *   - handed a DEMO account a payable checkout session, and
- *   - created sessions whose `success_url` is an internal hostname (`ip-10-110-66-173.…`),
- * while the client bundle refreshed normally. A visitor can therefore pay on the branded host and
- * land on a page that cannot load — which must never be shippable.
+ *   - created sessions whose `success_url` was an internal hostname (`ip-10-110-66-173.…`),
+ * while the client bundle refreshed normally. A visitor could therefore pay on the branded host and
+ * land on a page that cannot load — which must never be shippable. The cause turned out to be the
+ * server-side checkout code in `serve.ts`, fixed in #24/#25.
+ *
+ * CURRENT STATE (re-verified live 2026-09-28, main `413b118`): the layer does run the current code —
+ * every price key is accepted, a demo account is refused, and sessions carry success/cancel URLs on
+ * https://relevatelistingassistant.ctonew.app (both load). Payment Links remain the primary path:
+ * they ship with the client, need no server round-trip, and cannot be broken by a stale layer.
  *
  * A Stripe Payment Link is created in our own connected account and lives on Stripe's side, so it
- * ships with the client and does not depend on that stale layer at all.
+ * ships with the client and does not depend on the server layer at all.
  *
  * FILLING THESE IN
  * Create one link per plan in the Stripe dashboard (Products → Payment links), with
@@ -38,21 +44,30 @@ export const PAYMENT_LINKS: Record<string, string> = {
   starter_monthly: "https://buy.stripe.com/dRmfZj89t9ICflMbUl7ok02",
   pro: "https://buy.stripe.com/9B67sN89t3ke8Xo0bD7ok00",
   team: "https://buy.stripe.com/3cI5kFexR082flMgaB7ok01",
-  /* Yearly: no links exist yet, so the yearly cycle stays honestly "Not available yet" in the UI. */
-  starter_annual: "",
-  pro_annual: "",
-  team_annual: "",
+  /* Yearly (pay-upfront) links, created in our own connected account on 2026-09-28. Each redirects
+   * to https://relevatelistingassistant.ctonew.app/app/subscription/success, allows promotion codes,
+   * and carries `metadata plan=<lookup key>`. The price id on each line is the recurring year price
+   * the link charges, and its amount is the figure the UI prints (src/lib/stripe-prices.ts):
+   * Starter $435.24/yr · Pro $881.64/yr · Team $2,220.84/yr. */
+  starter_annual: "https://buy.stripe.com/5kQ8wRdtN4oib5w1fH7ok04", // price_1UIy0DRfpx71SLuLKwApkVcB — 43524¢ / year
+  pro_annual: "https://buy.stripe.com/14A5kF4XhdYS1uW7E57ok05", // price_1UIy0DRfpx71SLuLak0pGA7M — 88164¢ / year
+  team_annual: "https://buy.stripe.com/cNi00lgFZcUOc9A7E57ok03", // price_1UIy0DRfpx71SLuL7YM9HMcQ — 222084¢ / year
 };
 
 /**
  * Whether the legacy `/api/create-checkout-session` path may be offered.
  *
- * FALSE on purpose, and this is the non-negotiable invariant rather than a preference: on the
- * branded host that endpoint creates sessions whose success/cancel URLs point at an internal
- * hostname, so a buyer who pays is stranded. Turn this on ONLY once a session created on the live
- * host has been read back from Stripe and its `success_url` is a public host that loads
- * (`stripe_read /v1/checkout/sessions?limit=1`). Until then the API path stays off and the UI
- * offers Payment Links or nothing at all — never a button that can take money and strand someone.
+ * FALSE, and it may only be turned on by the task that produces the live proof (17ab450d), not as a
+ * side effect of any other change.
+ *
+ * The original reason for holding it (sessions whose success/cancel URLs pointed at an internal
+ * hostname, stranding a buyer who paid) is FIXED and verified live on 2026-09-28: the endpoint
+ * accepts every price key, refuses a demo account, and returns
+ * https://relevatelistingassistant.ctonew.app/app/subscription/success — which loads. The hold now
+ * rests on what is still unproven: no session created on the live host has been read back from
+ * Stripe and its public success_url followed through, and payment provisioning is manual (the
+ * webhook is not registered). Until that proof exists, the UI offers Payment Links or nothing —
+ * never a button that can take money without a return path we have actually verified.
  */
 export const API_CHECKOUT_ENABLED = false;
 
