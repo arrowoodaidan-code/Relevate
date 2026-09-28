@@ -1,17 +1,15 @@
 // Production server for the built site. The TanStack Start build emits a portable
 // fetch handler (dist/server/server.js) plus static client assets (dist/client);
-// this wraps them in a Bun server — static files first, API routes second, SSR
-// for the rest. Run `bun run build` before starting. Restart it with
+// this wraps them in a Bun server on port 3000 — static files first, API routes
+// second, SSR for the rest. Run `bun run build` before starting. Restart it with
 // `bun run publish`.
 //
-// Port: process.env.PORT if set to a valid port number, otherwise the pinned
-// default 3000 (the reverse proxy targets 0.0.0.0:3000). On a busy port the
-// server retries, then frees the port as a last-publish-wins fallback (an old
-// instance left holding :3000 by a superseded deploy must not keep serving),
-// and only fails loudly if freeing AND rebinding both fail.
+// Starting a new instance supersedes the old one: it frees the port no matter
+// which user owns the current server (provisioning starts it as `engine`; a team
+// member's `bun run publish` runs as their own user), so publish never collides
+// with an already-running server. Every sandbox user has passwordless sudo, so
+// the takeover works across user boundaries.
 import handler from "./dist/server/server.js";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
 import { analyzeTemplateRegions, generateContent, generateImage, validateImageDataUrl, validatePropertyImages, validateAgentImages, refineContent } from "./src/lib/ai";
 import { analyzeListingPhotos, validateListingImages } from "./src/lib/listing-analysis";
 import { signup, login, verifySession, deleteSession } from "./src/lib/auth";
@@ -37,28 +35,25 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
-// Port comes from the environment with a pinned default. The published preview
-// URL (<label>.<PUBLIC_SITE_DOMAIN>) is reverse-proxied to 0.0.0.0:3000, so an
-// UNSET port binds the default 3000 and the public URL keeps working. A PORT
-// that is set but malformed fails loudly instead of silently falling back —
-// a typo'd value must never quietly move (or appear to move) the site. HOST
-// stays pinned to 0.0.0.0 and is never read from the environment.
-const PORT_ENV = process.env.PORT;
-let PORT = 3000;
-if (PORT_ENV !== undefined && PORT_ENV !== "") {
-  const parsed = Number(PORT_ENV);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    console.error(
-      `FATAL: PORT="${PORT_ENV}" is not a valid port number (1-65535). ` +
-        `Set PORT to a valid port or unset it to use the default 3000.`,
-    );
-    process.exit(1);
-  }
-  PORT = parsed;
-}
+// Pinned, NOT read from the environment. The published preview URL
+// (<label>.<PUBLIC_SITE_DOMAIN>) is reverse-proxied to 0.0.0.0:3000 inside the
+// sandbox, so the default site MUST bind there. Bun auto-loads .env files, so
+// honouring process.env.PORT/HOST would let a stray env var or a .env in the site
+// dir silently move the site off :3000 (or onto loopback) and break the public URL.
+const PORT = 3000;
 const HOST = "0.0.0.0";
 const CLIENT_DIR = `${import.meta.dir}/dist/client`;
 const SESSION_COOKIE = "listinglab_session";
+
+// Free PORT regardless of which user owns the current listener. lsof runs under
+// sudo so it can see (and the kill can signal) a process owned by another user;
+// the loop waits for the socket to actually release before we bind.
+const freePort =
+  `for _ in $(seq 1 25); do ` +
+  `pids=$(lsof -t -iTCP:${String(PORT)} -sTCP:LISTEN 2>/dev/null || true); ` +
+  `if [ -z "$pids" ]; then exit 0; fi; ` +
+  `kill $pids 2>/dev/null || true; sleep 0.2; ` +
+  `done`;
 
 /**
  * Parse cookies from a Request into a simple record.
@@ -100,17 +95,12 @@ async function authenticate(req: Request): Promise<User | null> {
   return result?.user ?? null;
 }
 
-// Bind the port, last publish wins. The polite path is publish.sh stopping the
-// instance it started (via .run/server.pid) before launching us; a short retry
-// sequence covers the raced-restart window. If the port is STILL busy — e.g. an
-// old server instance left holding it by a superseded deploy, which is exactly
-// the stale-/api class observed on the live host — freeing it is the fallback:
-// a publish must never leave the previous build serving while the new one dies.
-// Only if freeing AND rebinding both fail does this process give up, loudly.
-const freePortScript =
-  `pids=$(lsof -t -iTCP:${String(PORT)} -sTCP:LISTEN 2>/dev/null || true); ` +
-  `if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi`;
+// Take over the port, re-freeing and retrying if another publish grabbed it in the
+// gap between freeing and binding (last publish wins). Bun.serve throws EADDRINUSE
+// synchronously, so without this a raced publish would die while the shell already
+// reported success.
 for (let attempt = 1; ; attempt++) {
+  await Bun.$`sudo sh -c ${freePort}`.quiet().nothrow();
   try {
     Bun.serve({
       port: PORT,
@@ -1032,32 +1022,9 @@ for (let attempt = 1; ; attempt++) {
     });
     break;
   } catch (err) {
-    if (attempt === 5) {
-      console.warn(
-        `[team-site] port ${String(PORT)} still busy after 5 tries — freeing it (last publish wins). Processes holding ${String(PORT)} will be stopped.`,
-      );
-      execSync(freePortScript, { stdio: "ignore" });
-      continue;
-    }
-    if (attempt >= 15) {
-      console.error(
-        `FATAL: cannot bind http://${HOST}:${String(PORT)} even after freeing the port — ` +
-          `${err instanceof Error ? err.message : String(err)}. ` +
-          `Start on a different port instead: PORT=<port> bun serve.ts`,
-      );
-      process.exit(1);
-    }
+    if (attempt >= 10) throw err;
     await Bun.sleep(200);
   }
-}
-
-// Record our pid so publish.sh can stop exactly this instance (and nothing
-// else) on the next publish. Written only after a successful bind.
-try {
-  mkdirSync(".run", { recursive: true });
-  writeFileSync(".run/server.pid", String(process.pid), "utf8");
-} catch {
-  // pidfile is an optimization for restarts, never a startup blocker
 }
 console.log(`team-site serving on http://${HOST}:${String(PORT)}`);
 
