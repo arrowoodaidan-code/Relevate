@@ -939,9 +939,17 @@ for (let attempt = 1; ; attempt++) {
              * base URL, then the request's own forwarded host if it is public, and finally this
              * site's own published URL (src/lib/seo.ts) as a last resort — and if none of those is
              * a public hostname, checkout is refused BEFORE a session exists, so no money moves. */
-            const resolved = resolvePublicBaseUrl({ headers: req.headers });
-            const fallbackBase = isPublicHostname(SITE_URL) ? `https://${stripHost(SITE_URL)}` : null;
-            const baseUrl = resolved ?? fallbackBase;
+            /* Order matters here. On this host the request's own host is the platform's preview
+             * name (measured 2026-09-24: 64c8ed4e5c6a776fe5aa4e42b8a09071.preview.bl.run) — it
+             * resolves and returns 200, so a buyer is no longer stranded, but it is not the domain
+             * we want a customer returned to. A configured public base URL or our own published
+             * URL therefore wins; the request's host is only a last resort. */
+            const configuredBase = resolvePublicBaseUrl({
+              headers: null,
+              env: { ...process.env, VERCEL_URL: undefined, VERCEL_PROJECT_PRODUCTION_URL: undefined },
+            });
+            const canonicalBase = isPublicHostname(SITE_URL) ? `https://${stripHost(SITE_URL)}` : null;
+            const baseUrl = configuredBase ?? canonicalBase ?? resolvePublicBaseUrl({ headers: req.headers });
             if (!baseUrl) {
               return Response.json(
                 {
@@ -953,7 +961,7 @@ for (let attempt = 1; ; attempt++) {
                 { status: 500 },
               );
             }
-            if (!resolved) {
+            if (!configuredBase && !canonicalBase) {
               console.warn(
                 "[team-site] checkout: request arrived on a non-public host; using the published site URL",
                 baseUrl,
