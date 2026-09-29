@@ -5,10 +5,17 @@ import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
 import { startCheckout, type CheckoutUnavailable } from "~/lib/product-checkout";
 import { monthlyPriceDisplay } from "~/lib/pricing-display";
+import { activePromotionText } from "~/lib/promotions";
 
 /* The CTA section's button subscribes to Starter monthly; its label quotes the real
  * price from the Stripe price record rather than promising a free trial. */
 const STARTER_MONTHLY = monthlyPriceDisplay("starter_monthly");
+
+/* The promotion banner renders from src/lib/promotions.ts — the single declared source of truth,
+ * whose entry must name the Stripe promotion code it refers to. The map is empty (no promotion
+ * exists in our Stripe account), so there is no banner: nothing on this page offers a discount.
+ * Do not write a code or a percent-off promise into this file. */
+const PROMOTION_TEXT = activePromotionText();
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -165,23 +172,23 @@ function Home() {
     <div className="min-h-dvh bg-[#0a1a0a] font-['Inter',system-ui,sans-serif]">
       <Navigation />
 
-      {/* ===== Product Hunt Launch Banner ===== */}
-      <a
-        href="/pricing"
-        className="block bg-gradient-to-r from-amber-700/80 via-amber-600/70 to-amber-700/80 px-4 py-2.5 text-center text-sm font-medium text-amber-50 transition-colors hover:from-amber-600/80 hover:via-amber-500/70 hover:to-amber-600/80"
-      >
-        <span className="inline-flex items-center gap-2">
-          🚀 We&rsquo;re live on Product Hunt!{" "}
-          <span className="font-bold underline underline-offset-2">Save 50%</span>{" "}
-          with code{" "}
-          <code className="rounded bg-amber-900/40 px-1.5 py-0.5 font-mono text-xs text-amber-100">
-            LAUNCH50
-          </code>
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-          </svg>
-        </span>
-      </a>
+      {/* ===== Promotion banner =====
+          Rendered ONLY when src/lib/promotions.ts declares a claim (with the Stripe promotion-code
+          id behind it). The map is empty, so there is no banner and no discount is offered here.
+          2026-09-28: this banner used to promise a code that no Stripe promotion code backed. */}
+      {PROMOTION_TEXT && (
+        <a
+          href="/pricing"
+          className="block bg-gradient-to-r from-amber-700/80 via-amber-600/70 to-amber-700/80 px-4 py-2.5 text-center text-sm font-medium text-amber-50 transition-colors hover:from-amber-600/80 hover:via-amber-500/70 hover:to-amber-600/80"
+        >
+          <span className="inline-flex items-center gap-2">
+            🚀 {PROMOTION_TEXT}
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </span>
+        </a>
+      )}
 
       {/* ===== Scenic Forest Parallax Background ===== */}
       {/* Scroll-based parallax layers (z-index: -1) */}

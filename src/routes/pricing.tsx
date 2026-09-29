@@ -10,6 +10,13 @@ import {
   type CheckoutUnavailable,
 } from "~/lib/product-checkout";
 import { annualPriceDisplay, monthlyPriceDisplay } from "~/lib/pricing-display";
+import { activePromotionText } from "~/lib/promotions";
+
+/* Any promotional offer shown on this page comes from src/lib/promotions.ts — the single declared
+ * source of truth, whose entry must name the Stripe promotion code it refers to. The map is empty
+ * (no promotion exists in our Stripe account), so this is null and the page offers no discount
+ * anywhere. Do not write a code or a percent-off promise into this file. */
+const PROMOTION_TEXT = activePromotionText();
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -17,7 +24,7 @@ export const Route = createFileRoute("/pricing")({
     meta: seoMeta({
       title: "Pricing — Relevate | AI Marketing Assistant for Real Estate Agents",
       description:
-        "Simple, transparent pricing for Relevate, the AI marketing assistant for real estate agents. Starter $39/mo, Pro $79/mo, Team $199/mo. Upgrade anytime — save 50% for 3 months with code LAUNCH50.",
+        "Simple, transparent pricing for Relevate, the AI marketing assistant for real estate agents. Starter $39/mo, Pro $79/mo, Team $199/mo. Upgrade anytime.",
       path: "/pricing",
     }),
     links: [canonical("/pricing")],
@@ -174,12 +181,9 @@ function PricingPage() {
           <p className="animate-on-scroll mt-4 text-lg text-emerald-200/60">
             Choose the plan that fits your business. Upgrade anytime.
           </p>
-          <p className="animate-on-scroll mt-3 text-sm text-amber-300/70">
-            🚀 Launch offer: save 50% for 3 months with code{" "}
-            <code className="rounded bg-amber-900/40 px-1.5 py-0.5 font-mono text-xs text-amber-100">
-              LAUNCH50
-            </code>
-          </p>
+          {PROMOTION_TEXT && (
+            <p className="animate-on-scroll mt-3 text-sm text-amber-300/70">🚀 {PROMOTION_TEXT}</p>
+          )}
         </div>
       </section>
 
