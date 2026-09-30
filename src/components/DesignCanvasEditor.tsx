@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { ComplianceChecklistPanel } from "~/components/ComplianceChecklistPanel";
 import { formatForDimensions } from "~/lib/advertising-rules";
 import {
+  designFitSeverity,
+  fitWarningsForDoc,
+  stripDocForFit,
+  type DesignTextFitInfo,
+} from "~/lib/design-fit";
+import {
   DESIGN_BACKGROUNDS,
   DESIGN_FONT_CATALOG,
   fontEntryFor,
@@ -89,6 +95,44 @@ export function DesignCanvasEditor({ doc, onChange, className }: Props) {
   projectedRef.current = projected;
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+
+  // WYSIWYG fit warnings (task c25031b9 — consultant P2): the renderer
+  // shrink-fits every text box with the real bundled fonts and ends overflowing
+  // text in "…" when even its minimum size cannot fit. The canvas cannot
+  // reproduce that (browser fonts ≠ DejaVu/opentype), so we ASK the server's
+  // own fit engine (/api/design-fit → render-design's fitTextLayer — the exact
+  // function the export paints with) and surface the result. Advisory only —
+  // silent on failure. Runs on the COMMITTED doc (drag projections commit on
+  // pointer-up), debounced while typing; text layers only, so the payload
+  // stays tiny even with multi-MB photos in the doc.
+  const [fitById, setFitById] = useState<Record<string, DesignTextFitInfo>>({});
+  const fitPayload = JSON.stringify({ doc: stripDocForFit(doc) });
+  const lastFitKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = fitPayload;
+    if (lastFitKeyRef.current === key) return;
+    const timer = setTimeout(() => {
+      lastFitKeyRef.current = key;
+      fetch("/api/design-fit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: key,
+      })
+        .then(async (res) => {
+          if (!res.ok) return;
+          const data = (await res.json()) as { success?: boolean; layers?: DesignTextFitInfo[] };
+          if (!data?.success || !Array.isArray(data.layers)) return;
+          const next: Record<string, DesignTextFitInfo> = {};
+          for (const info of data.layers) next[info.id] = info;
+          setFitById(next);
+        })
+        .catch(() => {
+          /* advisory only — never block editing on a failed analysis */
+        });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [fitPayload]);
+  const fitWarnings = fitWarningsForDoc(doc.layers, fitById);
 
   const scale = Math.min(1, CANVAS_MAX_WIDTH / doc.width);
   const previewW = doc.width * scale;
@@ -297,6 +341,35 @@ export function DesignCanvasEditor({ doc, onChange, className }: Props) {
           never renders a pass/fail or "compliant" verdict. */}
       <ComplianceChecklistPanel format={formatForDimensions(doc.width, doc.height)} />
 
+      {/* WYSIWYG fit warnings (task c25031b9): what the export will do to text
+          that the canvas cannot show — computed server-side by the renderer's
+          own fit engine. Renders nothing while every box fits as shown. */}
+      {fitWarnings.length > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 p-2.5 text-xs text-amber-100/90">
+          <div className="mb-1 font-semibold text-amber-300">Text will change in the exported PNG:</div>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {fitWarnings.map((w) => (
+              <li key={w.id}>
+                <button
+                  type="button"
+                  className="text-left underline decoration-amber-500/40 underline-offset-2 hover:decoration-amber-300"
+                  onClick={() => {
+                    setTool("select");
+                    setSelectedId(w.id);
+                  }}
+                >
+                  {w.message}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[11px] text-amber-200/50">
+            The renderer shrink-fits every text box with the real bundled fonts and ends overflowing text in "…" — shrink the
+            text or enlarge the box to keep what you see.
+          </p>
+        </div>
+      )}
+
       {/* Canvas */}
       <div
         className="relative self-start overflow-hidden rounded-md border border-emerald-800/40 shadow-[0_10px_40px_rgba(0,0,0,0.5)]"
@@ -308,6 +381,7 @@ export function DesignCanvasEditor({ doc, onChange, className }: Props) {
             <LayerView
               key={layer.id}
               layer={layer}
+              fit={layer.type === "text" ? fitById[layer.id] : undefined}
               selected={selectedId === layer.id}
               selectable={tool === "select"}
               onLayerDown={(e) => startDrag(e, layer, "move")}
@@ -326,6 +400,7 @@ export function DesignCanvasEditor({ doc, onChange, className }: Props) {
       {selected && (
         <PropertiesPanel
           layer={selected}
+          fit={selected.type === "text" ? fitById[selected.id] : undefined}
           onPatch={(patch) => commit(patchLayer(selected.id, patch))}
           onBackground={(bg) => commit({ ...doc, background: bg })}
         />
@@ -337,6 +412,7 @@ export function DesignCanvasEditor({ doc, onChange, className }: Props) {
 /* ------------------------------------------------------------------ */
 function LayerView({
   layer,
+  fit,
   selected,
   selectable,
   onLayerDown,
@@ -344,6 +420,8 @@ function LayerView({
   onRotateDown,
 }: {
   layer: DesignLayer;
+  /** Server fit result for text layers (undefined until the first analysis lands). */
+  fit?: DesignTextFitInfo;
   selected: boolean;
   selectable: boolean;
   onLayerDown: (e: React.PointerEvent) => void;
@@ -365,7 +443,13 @@ function LayerView({
   };
 
   let inner: React.ReactNode = null;
+  let fitBadge: React.ReactNode = null;
   if (layer.type === "text") {
+    const sev = fit ? designFitSeverity(fit) : "ok";
+    // WYSIWYG (task c25031b9): once the server has spoken, the canvas shows
+    // the EXPORT's text at the EXPORT's size — not the user's wish. The
+    // properties panel still holds/edits the real, full layer.text.
+    const showExport = !!fit && sev !== "ok";
     inner = (
       <div
         style={{
@@ -373,21 +457,49 @@ function LayerView({
           height: "100%",
           color: layer.color,
           fontFamily: cssFamily(layer.fontFamily ?? "sans"),
-          fontSize: layer.fontSize,
+          fontSize: showExport ? fit!.fittedFontSize : layer.fontSize,
           fontWeight: layer.fontWeight ?? 400,
           lineHeight: layer.lineHeight ?? 1,
           letterSpacing: layer.letterSpacing ?? 0,
           textAlign: layer.align ?? "left",
-          textTransform: layer.uppercase ? "uppercase" : "none",
+          textTransform: showExport ? "none" : layer.uppercase ? "uppercase" : "none",
           whiteSpace: "pre-wrap",
           overflow: "hidden",
           boxSizing: "border-box",
-          border: "1px dashed rgba(127,127,127,0.35)",
+          border: sev === "truncated" ? "1.5px dashed #f59e0b" : "1px dashed rgba(127,127,127,0.35)",
         }}
       >
-        {layer.text || " "}
+        {showExport ? fit!.exportText : layer.text || " "}
       </div>
     );
+    // Export preview badges (task c25031b9): non-interactive, pointer-events
+    // none. Amber "clips" = the export ends this text in "…"; blue "↧ Npx" =
+    // the export paints it smaller than the canvas shows.
+    if (fit && sev === "truncated") {
+      fitBadge = (
+        <div
+          style={{
+            position: "absolute", top: -12, left: -1, background: "#f59e0b", color: "#451a03",
+            fontSize: 10, fontWeight: 700, lineHeight: "13px", padding: "1px 5px",
+            borderRadius: "3px 3px 3px 0", pointerEvents: "none", zIndex: 6, whiteSpace: "nowrap",
+          }}
+        >
+          ✂ clips in export
+        </div>
+      );
+    } else if (fit && sev === "shrunk") {
+      fitBadge = (
+        <div
+          style={{
+            position: "absolute", top: -12, left: -1, background: "#0c4a6e", color: "#bae6fd",
+            fontSize: 10, lineHeight: "13px", padding: "1px 5px",
+            borderRadius: "3px 3px 3px 0", pointerEvents: "none", zIndex: 6, whiteSpace: "nowrap",
+          }}
+        >
+          ↧ {Math.round(fit.fittedFontSize)}px in export
+        </div>
+      );
+    }
   } else if (layer.type === "image") {
     inner = layer.imageData ? (
       <img
@@ -417,6 +529,7 @@ function LayerView({
   return (
     <div style={base} onPointerDown={(e) => { if (selectable) onLayerDown(e); else e.stopPropagation(); }}>
       {inner}
+      {fitBadge}
       {selected && selectable && (
         <>
           {HANDLES.map((h) => (
@@ -444,10 +557,12 @@ function LayerView({
 /* ------------------------------------------------------------------ */
 function PropertiesPanel({
   layer,
+  fit,
   onPatch,
   onBackground,
 }: {
   layer: DesignLayer;
+  fit?: DesignTextFitInfo;
   onPatch: (patch: Partial<DesignLayer>) => void;
   onBackground: (bg: string) => void;
 }) {
@@ -504,6 +619,24 @@ function PropertiesPanel({
             {num("Letter spacing", layer.letterSpacing ?? 0, (n) => onPatch({ letterSpacing: n }), -50, 200)}
             {num("Line height", layer.lineHeight ?? 1, (n) => onPatch({ lineHeight: n }), 0.5, 4, 0.1)}
           </div>
+          {/* Server fit verdict for THIS box (task c25031b9) — the export's actual behavior. */}
+          {fit && (
+            <p
+              className={
+                fit.truncated
+                  ? "text-[11px] text-amber-400/90"
+                  : designFitSeverity(fit) === "shrunk"
+                    ? "text-[11px] text-sky-300/80"
+                    : "text-[11px] text-emerald-300/50"
+              }
+            >
+              {fit.truncated
+                ? "⚠ Will be CUT OFF (…) in the export — shorten the text or enlarge this box."
+                : designFitSeverity(fit) === "shrunk"
+                  ? `Renders at ${Math.round(fit.fittedFontSize)}px (shown ${Math.round(fit.requestedFontSize)}px) so it fits its box.`
+                  : "Fits as shown — the export will match."}
+            </p>
+          )}
           <div className="flex flex-wrap gap-3">{col("Text color", layer.color, (c) => onPatch({ color: c }))}</div>
           <label className="flex items-center gap-1.5 text-[11px] text-emerald-300/60">
             <input type="checkbox" checked={!!layer.uppercase} onChange={(e) => onPatch({ uppercase: e.target.checked })} /> Uppercase

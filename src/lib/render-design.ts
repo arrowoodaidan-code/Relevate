@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { DesignDoc, DesignLayer, DesignFontWeight } from "./design";
 import { DESIGN_FAMILY_TO_REGISTRY } from "./design";
+import type { DesignTextFitInfo } from "./design-fit";
 import { fitBlockToBox } from "./branded-templates";
 
 const BT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -180,6 +181,52 @@ function truncateForDisplay(text: string, fitted: { fontSize: number; lines: num
   return text.length > cap ? `${text.slice(0, cap)}…` : `${text}…`;
 }
 
+/**
+ * The EXACT string the renderer paints for a text layer (task c25031b9):
+ * truncation ellipsis + uppercase transform applied, in paint order. The
+ * editor's canvas renders THIS string so what you see equals what the export
+ * contains — single source of truth shared by layerDiv and analyzeDesignTextFit.
+ */
+export function designExportText(
+  layer: Extract<DesignLayer, { type: "text" }>,
+  fitted: { fontSize: number; lines: number; truncated: boolean },
+): string {
+  const display = truncateForDisplay(layer.text, fitted);
+  return layer.uppercase ? display.toUpperCase() : display;
+}
+
+/**
+ * WYSIWYG fit analysis (task c25031b9): run the RENDERER'S OWN fit engine over
+ * every text layer of a doc so the editor can warn before export. This is the
+ * exact function /api/render-design paints with — same fonts, same opentype
+ * measure, same minSize floor — so the reported fontSize/truncation IS what the
+ * exported PNG shows (single source of truth; nothing duplicated client-side).
+ * Layers that make the fit engine throw (degenerate geometry) are reported as
+ * truncated rather than failing the whole analysis: the render path could not
+ * have fitted them either.
+ */
+export function analyzeDesignTextFit(doc: DesignDoc): DesignTextFitInfo[] {
+  const out: DesignTextFitInfo[] = [];
+  for (const layer of doc.layers) {
+    if (layer.type !== "text") continue;
+    const t = layer as Extract<DesignLayer, { type: "text" }>;
+    try {
+      const fitted = fitTextLayer(t);
+      out.push({
+        id: t.id,
+        requestedFontSize: t.fontSize,
+        fittedFontSize: fitted.fontSize,
+        lines: fitted.lines,
+        truncated: fitted.truncated,
+        exportText: designExportText(t, fitted),
+      });
+    } catch {
+      out.push({ id: t.id, requestedFontSize: t.fontSize ?? 0, fittedFontSize: 0, lines: 0, truncated: true, exportText: "" });
+    }
+  }
+  return out;
+}
+
 function layerDiv(layer: DesignLayer): ReactNode {
   const base = { left: layer.rect.x, top: layer.rect.y, width: layer.rect.w, height: layer.rect.h };
   const transform = layer.rotation ? { transform: `rotate(${layer.rotation}deg)` } : {};
@@ -189,8 +236,7 @@ function layerDiv(layer: DesignLayer): ReactNode {
     const fitted = fitTextLayer(layer2);
     const family = DESIGN_FAMILY_TO_REGISTRY[layer2.fontFamily ?? "sans"];
     const weight = normalizedWeight(family, layer2.fontWeight);
-    const display = truncateForDisplay(layer2.text, fitted);
-    const upper = layer2.uppercase ? display.toUpperCase() : display;
+    const upper = designExportText(layer2, fitted);
     return h(
       "div",
       {

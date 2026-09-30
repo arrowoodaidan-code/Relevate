@@ -24,7 +24,7 @@ import { captureDemoLead, validateDemoLead } from "./src/lib/leads";
 import { sendTransactionalEmail } from "./src/lib/email";
 import { deleteProperty, getPropertyWithContent, getUsageSummary, listProperties, upsertPropertyWithContent } from "./src/lib/properties";
 import { createTemplate, deleteTemplate, getTemplate, listTemplates, updateTemplate, validateTemplatePayload } from "./src/lib/templates";
-import { renderDesignDoc } from "./src/lib/render-design";
+import { renderDesignDoc, analyzeDesignTextFit } from "./src/lib/render-design";
 import type { DesignDoc } from "./src/lib/design";
 import { createDesignTemplate, deleteDesignTemplate, getDesignTemplate, listDesignTemplates, updateDesignTemplate, validateDesignTemplatePayload } from "./src/lib/design-templates";
 import { PRICE_KEYS } from "./src/lib/price-keys";
@@ -282,6 +282,25 @@ for (let attempt = 1; ; attempt++) {
           } catch (error) {
             console.error("API /api/render-design error:", error);
             return Response.json({ success: false, error: "Failed to render design PNG" }, { status: 500 });
+          }
+        }
+        // POST /api/design-fit — WYSIWYG text-fit analysis (task c25031b9):
+        // runs the renderer's OWN fitTextLayer per text layer so the editor can
+        // warn "this box will clip/shrink in the export" before the user renders.
+        // Advisory only; requires auth like every render path.
+        if (pathname === "/api/design-fit" && req.method === "POST") {
+          const user = await authenticate(req);
+          if (!user) return Response.json({ success: false, error: "Authentication required. Please log in." }, { status: 401 });
+          try {
+            const body = await req.json();
+            const doc = body?.doc as DesignDoc | undefined;
+            if (!doc || typeof doc.width !== "number" || typeof doc.height !== "number" || !Array.isArray(doc.layers)) {
+              return Response.json({ success: false, error: "Invalid DesignDoc payload (doc.width/height/layers required)" }, { status: 400 });
+            }
+            return Response.json({ success: true, layers: analyzeDesignTextFit(doc) });
+          } catch (error) {
+            console.error("API /api/design-fit error:", error);
+            return Response.json({ success: false, error: "Failed to analyze design fit" }, { status: 500 });
           }
         }
 

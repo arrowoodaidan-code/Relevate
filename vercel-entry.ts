@@ -28,7 +28,7 @@ import { sendTransactionalEmail } from "./src/lib/email";
 import { deleteProperty, getPropertyWithContent, getUsageSummary, listProperties, upsertPropertyWithContent } from "./src/lib/properties";
 import { createTemplate, deleteTemplate, getTemplate, listTemplates, updateTemplate, validateTemplatePayload } from "./src/lib/templates";
 import { createDesignTemplate, deleteDesignTemplate, getDesignTemplate, listDesignTemplates, updateDesignTemplate, validateDesignTemplatePayload } from "./src/lib/design-templates";
-import { renderDesignDoc } from "./src/lib/render-design";
+import { renderDesignDoc, analyzeDesignTextFit } from "./src/lib/render-design";
 import type { DesignDoc } from "./src/lib/design";
 
 function escapeHtml(s: string): string {
@@ -283,6 +283,27 @@ export default async function vercelHandler(
       } catch (error) {
         console.error("[team-site] /api/render-design error:", error);
         sendJson(res, 500, { success: false, error: "Failed to render design PNG" });
+      }
+      return;
+    }
+    // POST /api/design-fit — WYSIWYG text-fit analysis (task c25031b9):
+    // runs the renderer's OWN fitTextLayer per text layer so the editor can
+    // warn "this box will clip/shrink in the export" before the user renders.
+    // Advisory only; requires auth like every render path. MUST mirror serve.ts.
+    if (pathname === "/api/design-fit" && req.method === "POST") {
+      const user = await authenticate(req);
+      if (!user) { sendJson(res, 401, { success: false, error: "Authentication required. Please log in." }); return; }
+      try {
+        const body = await readJson(req);
+        const doc = body?.doc as DesignDoc | undefined;
+        if (!doc || typeof doc.width !== "number" || typeof doc.height !== "number" || !Array.isArray(doc.layers)) {
+          sendJson(res, 400, { success: false, error: "Invalid DesignDoc payload (doc.width/height/layers required)" });
+          return;
+        }
+        sendJson(res, 200, { success: true, layers: analyzeDesignTextFit(doc) });
+      } catch (error) {
+        console.error("[team-site] /api/design-fit error:", error);
+        sendJson(res, 500, { success: false, error: "Failed to analyze design fit" });
       }
       return;
     }
