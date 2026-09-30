@@ -23,6 +23,10 @@
  *     with analyzeDesignTextFit imported, and the editor POSTs to it;
  *     design-fit.ts stays client-safe (no node/satori/resvg imports).
  *
+ *  6. task c2a8c6ab — a TRUNCATED layer keeps the text that actually fits: the
+ *     painted string is the fit engine's own kept lines (+ terminal ellipsis),
+ *     never a "lines * 1.6" character-collapse ("C…", "Charming…").
+ *
  * Run: bun scripts/test-design-fit-wysiwyg.ts
  */
 import { readFileSync } from "node:fs";
@@ -179,7 +183,7 @@ assert(fitWarningMessage(doc.layers[0] as Parameters<typeof fitWarningMessage>[0
 // Sub-pixel drops are invisible — the fit engine's binary search lands on 0.5px
 // steps, so 47.5-vs-48 must NOT raise a badge.
 assert(
-  designFitSeverity({ id: "x", requestedFontSize: 48, fittedFontSize: 47.5, lines: 2, truncated: false }) === "ok",
+  designFitSeverity({ id: "x", requestedFontSize: 48, fittedFontSize: 47.5, lines: 2, truncated: false, exportText: "" }) === "ok",
   "sub-pixel shrink (47.5 vs 48) stays ok — no badge noise",
 );
 
@@ -234,6 +238,91 @@ assert(
   `uppercase applied in exportText (${JSON.stringify(styledInfo.exportText)})`,
 );
 assert(editorSrc.includes("exportText"), "canvas renders the export's string at the export's size");
+
+// 9. task c2a8c6ab — a TRUNCATED layer keeps the text that actually FITS.
+// The pre-fix cap `floor(lines * 1.6)` (its fontSize factor cancelled out)
+// painted ~1 character per 1.6 lines: a 5-line box painted "Charming…", a
+// 1-line box painted "C…". The fix paints the fit engine's OWN kept lines,
+// last one ellipsized within the box. These checks fail BY NAME if the
+// collapse ever returns.
+const oldCap = (lines: number) => Math.max(1, Math.floor(lines * 1.6)); // pre-fix budget, same semantics
+const COLLAPSE = (id: string, lines: number, painted: number) =>
+  `TRUNCATION COLLAPSE (task c2a8c6ab) on ${id}: ${lines} fitted line(s) painted as only ${painted} characters — the "lines * 1.6" cap is back`;
+
+// 9a. Multi-line truncated caption: roomy width, shallow height — several
+//     wrapped lines fit and the engine keeps exactly those.
+const CAPTION9 =
+  "Charming three bedroom craftsman with a wraparound porch, rebuilt kitchen, " +
+  "sunny breakfast nook, and a fenced backyard garden that glows on summer " +
+  "evenings. Two-car garage, new roof, walk to the Saturday market and the " +
+  "blue-ribbon elementary school. Open house Saturday 1 to 4.";
+const multiDoc: DesignDoc = {
+  width: 1275,
+  height: 1650,
+  background: "#ffffff",
+  layers: [
+    makeTextLayer({ id: "caption9", text: CAPTION9, rect: { x: 90, y: 120, w: 420, h: 150 }, fontSize: 44, lineHeight: 1.3 }),
+    makeTextLayer({ id: "upper9", text: CAPTION9, rect: { x: 90, y: 380, w: 420, h: 150 }, fontSize: 44, lineHeight: 1.3, uppercase: true }),
+  ],
+};
+const multiById = new Map(analyzeDesignTextFit(multiDoc).map((i) => [i.id, i]));
+const cap9 = multiById.get("caption9")!;
+assert(!!cap9 && cap9.truncated && cap9.lines >= 3, `caption box truncates across MULTIPLE fitted lines (got lines=${cap9?.lines})`);
+const fitted9 = fitTextLayer(multiDoc.layers[0] as Parameters<typeof fitTextLayer>[0]);
+const kept9 = fitted9.keptLines ?? [];
+assert(
+  fitted9.truncated && kept9.length === cap9.lines && kept9.length >= 3,
+  `fitBlockToBox surfaces its own kept wrap for the truncated layer (${kept9.length} of ${cap9.lines} lines)`,
+);
+assert(
+  cap9.exportText.length >= Math.ceil(0.8 * kept9.join("\n").length),
+  `painted string keeps a substantial share of what fits (${cap9.exportText.length} of ${kept9.join("\n").length} chars)`,
+);
+assert(
+  cap9.exportText.length > oldCap(cap9.lines) + 1,
+  COLLAPSE(cap9.id, cap9.lines, cap9.exportText.length),
+);
+assert(
+  cap9.exportText.split("\n").length === cap9.lines,
+  `painted string carries exactly the ${cap9.lines} fitted lines`,
+);
+assert(
+  kept9.length > 1 && cap9.exportText.startsWith(kept9[0]!),
+  "painted string starts with the engine's own first fitted line",
+);
+assert(
+  cap9.exportText.indexOf("…") === cap9.exportText.length - 1,
+  "the ellipsis appears only at the end (it signals more text existed)",
+);
+const upper9 = multiById.get("upper9")!;
+assert(
+  !!upper9 && upper9.exportText === cap9.exportText.toUpperCase(),
+  `uppercase composes over the joined truncated lines (${JSON.stringify(upper9?.exportText.slice(0, 24))}…)`,
+);
+assert(
+  upper9.exportText === designExportText(multiDoc.layers[1] as Parameters<typeof designExportText>[0], fitTextLayer(multiDoc.layers[1] as Parameters<typeof fitTextLayer>[0])),
+  "uppercase truncated layer: analyzeDesignTextFit === designExportText (WYSIWYG parity holds)",
+);
+
+// 9b. One-line box (the existing truncated fixture): the old code painted
+//     exactly "C…" — 2 characters for a full wrapped line that fits.
+assert(
+  trunc.exportText.length > oldCap(trunc.lines) + 1,
+  COLLAPSE(trunc.id, trunc.lines, trunc.exportText.length),
+);
+assert(
+  trunc.exportText === fitTextLayer(truncLayer).keptLines?.join("\n"),
+  `1-line truncated paint === the engine's kept line (+ ellipsis): ${JSON.stringify(trunc.exportText)}`,
+);
+
+// 9c. Defensive fallback: a truncated verdict WITHOUT a kept wrap (fit engine
+//     could not produce one — degenerate geometry) paints the bare ellipsis,
+//     never a pretended fragment of text.
+const degLayer = makeTextLayer({ id: "deg9", text: "Anything", rect: { x: 0, y: 0, w: 10, h: 10 }, fontSize: 12 });
+assert(
+  designExportText(degLayer, { fontSize: 0, lines: 0, truncated: true }) === "…",
+  "truncated verdict without keptLines paints the bare ellipsis (no pretended fragment)",
+);
 
 console.log(`\n${failures === 0 ? "ALL PASS" : "FAILURES"}: ${passes} passed, ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

@@ -90,6 +90,14 @@ export interface FitBlockResult {
   fontSize: number;
   lines: number;
   truncated: boolean;
+  /**
+   * Task c2a8c6ab — present ONLY when truncated: the engine's own fitted
+   * wrap, kept to the lines that actually fit the box, last line ellipsized
+   * within the box width. This is the honest display source for a truncated
+   * layer (the text that actually fits), not a character-count guess.
+   * Absent when not truncated or when no wrap could be produced at all.
+   */
+  keptLines?: string[];
 }
 // Synchronous font resolution for the CONTRACT path (unit tests call
 // fitBlockToBox with a family name, not a preloaded buffer). Candidates mirror
@@ -273,6 +281,38 @@ export function wrapLines(text: string, fontBuf: ArrayBuffer | undefined, size: 
   }
   return out;
 }
+/**
+ * Truncation-floor display (task c2a8c6ab): the wrapped lines that actually
+ * fit the box height, with the last one ellipsized within the box width — the
+ * "…" must itself fit or it signals nothing. Shared by fitBlockLines and
+ * fitBlockToBox so the four layouts and the design-editor fit surface ONE
+ * truncation behavior. Returns a NEW array; the caller's wrap is untouched.
+ * ["…"] alone when not even one line fits.
+ */
+export function keptLinesWithEllipsis(
+  wrapped: string[],
+  height: number,
+  width: number,
+  fontBuf: ArrayBuffer | undefined,
+  size: number,
+  ls: number,
+  lineHeight: number,
+): string[] {
+  const kept: string[] = [];
+  for (const l of wrapped) {
+    if ((kept.length + 1) * size * lineHeight > height) break;
+    kept.push(l);
+  }
+  const ellipsis = "…";
+  const lastIdx = kept.length - 1;
+  if (lastIdx < 0) return [ellipsis];
+  let last = kept[lastIdx]!;
+  while (last.length > 1 && measureTextWidth(last + ellipsis, fontBuf, size, ls) > width) {
+    last = last.slice(0, -1);
+  }
+  kept[lastIdx] = last + ellipsis;
+  return kept;
+}
 /** Internal solve used by the layouts (returns the wrapped lines for rendering). */
 export function fitBlockLines(text: string, opts: FitOpts): FitResult {
   const { width, height, fontBuf, lineHeight, minSize, maxSize } = opts;
@@ -300,24 +340,7 @@ export function fitBlockLines(text: string, opts: FitOpts): FitResult {
   if (lines.length * minSize * lineHeight > height) {
     truncated = true;
     size = minSize;
-    const kept: string[] = [];
-    for (const l of lines) {
-      if ((kept.length + 1) * minSize * lineHeight > height) break;
-      kept.push(l);
-    }
-    const ellipsis = "…";
-    const lastIdx = kept.length - 1;
-    if (lastIdx < 0) {
-      // Extremely tight slot: nothing fits at minSize — emit one ellipsis.
-      lines = [ellipsis];
-    } else {
-      let last = kept[lastIdx];
-      while (last.length > 1 && measureTextWidth(last + ellipsis, fontBuf, size, ls) > width) {
-        last = last.slice(0, -1);
-      }
-      kept[lastIdx] = last + ellipsis;
-      lines = kept;
-    }
+    lines = keptLinesWithEllipsis(lines, height, width, fontBuf, size, ls, lineHeight);
   }
   return { size, lines, truncated };
 }
@@ -365,6 +388,11 @@ export function fitBlockToBox(text: string, opts: FitBlockOptions | FitOpts): Fi
   }
   let truncated = false;
   let lineCount = lines.length;
+  // Task c2a8c6ab — the honest truncation display: when the box cannot hold
+  // the copy, surface the engine's OWN wrap kept to the lines that fit (last
+  // one ellipsized within width) so callers paint what actually fits instead
+  // of guessing a character count. `lines` stays the documented count.
+  let keptLines: string[] | undefined;
   // Truncation floor: height overflow at minSize, OR an unbreakable word wider
   // than the box at minSize (e.g. a 5000-char token) — both signal "even
   // minSize doesn't fit" → truncated=true so the caller ellipsizes.
@@ -373,15 +401,13 @@ export function fitBlockToBox(text: string, opts: FitBlockOptions | FitOpts): Fi
   if (lines.length * minSize * lineHeight > height || maxWAtMin > width + 1) {
     truncated = true;
     fontSize = minSize;
-    const kept: string[] = [];
-    for (const l of lines) {
-      if ((kept.length + 1) * minSize * lineHeight > height) break;
-      kept.push(l);
-    }
-    lineCount = Math.max(1, kept.length);
+    keptLines = keptLinesWithEllipsis(lines, height, width, fontBuf, minSize, ls, lineHeight);
+    lineCount = Math.max(1, keptLines.length);
   }
   void bestLines;
-  return { fontSize, lines: lineCount, truncated };
+  return keptLines
+    ? { fontSize, lines: lineCount, truncated, keptLines }
+    : { fontSize, lines: lineCount, truncated };
 }
 // ---------------------------------------------------------------------------
 // R5 slot geometry (r5-test-contract.md §1) — canvas-px rects of every text

@@ -35,7 +35,7 @@ import { dirname, join } from "node:path";
 import type { DesignDoc, DesignLayer, DesignFontWeight } from "./design";
 import { DESIGN_FAMILY_TO_REGISTRY } from "./design";
 import type { DesignTextFitInfo } from "./design-fit";
-import { fitBlockToBox } from "./branded-templates";
+import { fitBlockToBox, type FitBlockResult } from "./branded-templates";
 
 const BT_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -150,12 +150,11 @@ function normalizedWeight(family: string, weight: DesignFontWeight | undefined):
   return keys.reduce((best, k) => (Math.abs(k - w) < Math.abs(best - w) ? k : best), keys[0]);
 }
 
-/** Fit a text layer so it never silently clips: fitBlockToBox within the box. */
-export function fitTextLayer(layer: Extract<DesignLayer, { type: "text" }>): {
-  fontSize: number;
-  lines: number;
-  truncated: boolean;
-} {
+/** Fit a text layer so it never silently clips: fitBlockToBox within the box.
+ * Returns the documented fit result; when truncated, keptLines carries the
+ * engine's own fitted wrap — the lines that actually fit, last one
+ * ellipsized within the box (task c2a8c6ab). */
+export function fitTextLayer(layer: Extract<DesignLayer, { type: "text" }>): FitBlockResult {
   const family = DESIGN_FAMILY_TO_REGISTRY[layer.fontFamily ?? "sans"];
   const weight = normalizedWeight(family, layer.fontWeight);
   const minSize = Math.max(8, Math.min(24, layer.fontSize * 0.5));
@@ -173,12 +172,22 @@ export function fitTextLayer(layer: Extract<DesignLayer, { type: "text" }>): {
   });
 }
 
-function truncateForDisplay(text: string, fitted: { fontSize: number; lines: number; truncated: boolean }): string {
+type FittedForDisplay = { fontSize: number; lines: number; truncated: boolean; keptLines?: string[] };
+
+function truncateForDisplay(text: string, fitted: FittedForDisplay): string {
   if (!fitted.truncated) return text;
-  // Keep first N chars so it clearly ends with an ellipsis (best-effort; the
-  // caller / editor shows the full unchanged text — only render truncates).
-  const cap = Math.max(1, Math.floor((fitted.fontSize * fitted.lines * 1.6) / (fitted.fontSize || 1)));
-  return text.length > cap ? `${text.slice(0, cap)}…` : `${text}…`;
+  // The fit engine's own wrap is the honest source (task c2a8c6ab): when the
+  // box cannot hold the copy, paint exactly the lines the engine kept — the
+  // same wrap it measured, joined in paint order, the last line ellipsized
+  // within the box — so a truncated layer keeps as much text as actually
+  // fits. No character-count heuristic here: the old cap
+  // `floor(lines * 1.6)` (its fontSize factor cancelled out) painted a
+  // gibberish-length fragment — 1 line kept 1 character, 5 lines kept 8.
+  // keptLines is absent only when the fit engine could not produce a wrap at
+  // all (degenerate geometry): the honest display is then the bare ellipsis,
+  // not a pretended fragment.
+  if (fitted.keptLines?.length) return fitted.keptLines.join("\n");
+  return "…";
 }
 
 /**
@@ -189,7 +198,7 @@ function truncateForDisplay(text: string, fitted: { fontSize: number; lines: num
  */
 export function designExportText(
   layer: Extract<DesignLayer, { type: "text" }>,
-  fitted: { fontSize: number; lines: number; truncated: boolean },
+  fitted: FittedForDisplay,
 ): string {
   const display = truncateForDisplay(layer.text, fitted);
   return layer.uppercase ? display.toUpperCase() : display;
