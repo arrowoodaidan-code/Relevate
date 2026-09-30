@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { DesignDoc, DesignLayer, DesignFontWeight } from "./design";
 import { DESIGN_FAMILY_TO_REGISTRY } from "./design";
+import type { DesignTextFitInfo } from "./design-fit";
 import { fitBlockToBox } from "./branded-templates";
 
 const BT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -178,6 +179,37 @@ function truncateForDisplay(text: string, fitted: { fontSize: number; lines: num
   // caller / editor shows the full unchanged text — only render truncates).
   const cap = Math.max(1, Math.floor((fitted.fontSize * fitted.lines * 1.6) / (fitted.fontSize || 1)));
   return text.length > cap ? `${text.slice(0, cap)}…` : `${text}…`;
+}
+
+/**
+ * WYSIWYG fit analysis (task c25031b9): run the RENDERER'S OWN fit engine over
+ * every text layer of a doc so the editor can warn before export. This is the
+ * exact function /api/render-design paints with — same fonts, same opentype
+ * measure, same minSize floor — so the reported fontSize/truncation IS what the
+ * exported PNG shows (single source of truth; nothing duplicated client-side).
+ * Layers that make the fit engine throw (degenerate geometry) are reported as
+ * truncated rather than failing the whole analysis: the render path could not
+ * have fitted them either.
+ */
+export function analyzeDesignTextFit(doc: DesignDoc): DesignTextFitInfo[] {
+  const out: DesignTextFitInfo[] = [];
+  for (const layer of doc.layers) {
+    if (layer.type !== "text") continue;
+    const t = layer as Extract<DesignLayer, { type: "text" }>;
+    try {
+      const fitted = fitTextLayer(t);
+      out.push({
+        id: t.id,
+        requestedFontSize: t.fontSize,
+        fittedFontSize: fitted.fontSize,
+        lines: fitted.lines,
+        truncated: fitted.truncated,
+      });
+    } catch {
+      out.push({ id: t.id, requestedFontSize: t.fontSize ?? 0, fittedFontSize: 0, lines: 0, truncated: true });
+    }
+  }
+  return out;
 }
 
 function layerDiv(layer: DesignLayer): ReactNode {
