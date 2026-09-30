@@ -44,10 +44,11 @@ function SubscriptionSuccessPage() {
         </h1>
 
         <p className="mt-6 animate-fade-in-up text-lg leading-relaxed text-emerald-200/80">
-          We&rsquo;re finishing your Relevate account now. You&rsquo;ll normally
-          have full access within a few minutes — if the dashboard still looks
-          locked after that, refresh this page. Still locked? Reply to your Stripe
-          receipt and we&rsquo;ll activate your account for you.
+          We&rsquo;re setting up your Relevate account now — that part is done by
+          hand, not automatically, so it can take a little while. When it&rsquo;s
+          ready, sign in with the email address you used at checkout. Want an
+          update sooner? Reply to your Stripe receipt and we&rsquo;ll tell you
+          where it stands.
         </p>
 
         {/* Being signed out here is normal — a buyer returning from Stripe may have no session on
