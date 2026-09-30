@@ -179,7 +179,7 @@ assert(fitWarningMessage(doc.layers[0] as Parameters<typeof fitWarningMessage>[0
 // Sub-pixel drops are invisible — the fit engine's binary search lands on 0.5px
 // steps, so 47.5-vs-48 must NOT raise a badge.
 assert(
-  designFitSeverity({ id: "x", requestedFontSize: 48, fittedFontSize: 47.5, lines: 2, truncated: false }) === "ok",
+  designFitSeverity({ id: "x", requestedFontSize: 48, fittedFontSize: 47.5, lines: 2, truncated: false, exportText: "Open House" }) === "ok",
   "sub-pixel shrink (47.5 vs 48) stays ok — no badge noise",
 );
 

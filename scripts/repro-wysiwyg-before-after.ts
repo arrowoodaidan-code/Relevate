@@ -69,7 +69,6 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 function boxLines(id: "shrunk" | "truncated", canvasSize: number): { lines: string[]; size: number; stroke: string; dash: string } {
   const layer = doc.layers.find((l) => l.id === id)! as { text: string; rect: { x: number; y: number; w: number; h: number }; fontSize: number; lineHeight?: number };
-  const lh = layer.lineHeight ?? 1.2;
   if (id === "shrunk") {
     const size = canvasSize === 0 ? layer.fontSize : shrunk.fittedFontSize; // 0 = pre-fix canvas model
     return { lines: wrapLines(layer.text, dejavu.buffer.slice(dejavu.byteOffset, dejavu.byteOffset + dejavu.byteLength), size, 0, layer.rect.w), size, stroke: canvasSize === 0 ? "#9ca3af" : "#0c4a6e", dash: "4 3" };
