@@ -5,9 +5,15 @@ import { trackEvent } from "~/lib/analytics";
 
 export const Route = createFileRoute("/app/subscription/success")({
   component: SubscriptionSuccessPage,
+  /* Read the checkout reference Stripe appends, and never lose it: validateSearch keeps
+   * ?session_id=… in the URL rather than dropping it in a redirect. */
+  validateSearch: (search: Record<string, unknown>) => ({
+    session_id: typeof search.session_id === "string" ? search.session_id : undefined,
+  }),
 });
 
 function SubscriptionSuccessPage() {
+  const { session_id } = Route.useSearch();
   useEffect(() => {
     trackEvent("subscription_paid");
   }, []);
@@ -44,9 +50,24 @@ function SubscriptionSuccessPage() {
           receipt and we&rsquo;ll activate your account for you.
         </p>
 
+        {/* Being signed out here is normal — a buyer returning from Stripe may have no session on
+            this device — and this page cannot tie a checkout reference to an account by itself.
+            Say that plainly instead of sending them to /login with no context. Copy stays as
+            strong as it was: no "your subscription is active", no promised email. */}
         <p className="mt-4 animate-fade-in-up text-base leading-relaxed text-emerald-200/70">
-          Sign in with the email address you used at checkout — that&rsquo;s how we
-          match your payment to your account.
+          This page can&rsquo;t tell on its own which account a checkout belongs to, and you
+          don&rsquo;t need to be signed in to read it. Sign in with the email address you used at
+          checkout and we&rsquo;ll match the payment to your account.
+          {session_id ? (
+            <>
+              {" "}
+              Your checkout reference is{" "}
+              <code className="rounded bg-emerald-950/60 px-1.5 py-0.5 font-mono text-xs text-emerald-100">
+                {session_id}
+              </code>{" "}
+              — quote it if you reply to your Stripe receipt.
+            </>
+          ) : null}
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { RelevateMark } from "~/components";
 import {
@@ -245,6 +245,16 @@ export const Route = createFileRoute("/app")({
 function AppDashboard() {
   const navigate = useNavigate();
 
+  /* /app/subscription/success and /app/subscription/cancel are CHILD routes of /app
+   * (src/routeTree.gen.ts registers them with getParentRoute: () => AppRoute), so they can only
+   * render where this component renders an <Outlet/>. Their URL cannot move: live Stripe Payment
+   * Links and existing sessions redirect buyers to /app/subscription/success. A buyer returning
+   * from checkout may have no session on this device, so these paths render the route itself
+   * instead of the studio — no auth, no redirect, and ?session_id=… stays in the address bar. */
+  const isSubscriptionReturn = useRouterState({
+    select: (state) => state.location.pathname.startsWith("/app/subscription/"),
+  });
+
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   // Saved-properties history + monthly usage (owner-requested app updates)
@@ -256,6 +266,13 @@ function AppDashboard() {
   const [savedPanelMsg, setSavedPanelMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    /* A buyer returning from Stripe may not be signed in on this device. Bouncing them to
+     * /login loses ?session_id=… and shows them a login screen instead of their confirmation,
+     * so the post-payment pages render without auth. */
+    if (isSubscriptionReturn) {
+      setAuthLoading(false);
+      return;
+    }
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
@@ -267,7 +284,7 @@ function AppDashboard() {
       })
       .catch(() => navigate({ to: "/login" }))
       .finally(() => setAuthLoading(false));
-  }, [navigate]);
+  }, [navigate, isSubscriptionReturn]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -1098,6 +1115,12 @@ function AppDashboard() {
         </div>
       </div>
     );
+  }
+
+  /* The child route renders instead of the studio: both subscription pages are complete pages
+   * of their own (their own layout and navigation), and neither needs the signed-in user. */
+  if (isSubscriptionReturn) {
+    return <Outlet />;
   }
 
   if (!user) return null;
