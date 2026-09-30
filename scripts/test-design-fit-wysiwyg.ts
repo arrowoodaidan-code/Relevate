@@ -34,7 +34,7 @@ import {
   makeTextLayer,
   type DesignDoc,
 } from "../src/lib/design";
-import { analyzeDesignTextFit, fitTextLayer } from "../src/lib/render-design";
+import { analyzeDesignTextFit, designExportText, fitTextLayer } from "../src/lib/render-design";
 import {
   designFitSeverity,
   fitWarningMessage,
@@ -214,6 +214,26 @@ const fitLibCode = stripComments(readFileSync(join(ROOT, "src/lib/design-fit.ts"
 for (const banned of ["node:", "satori", "resvg", "readFileSync"]) {
   assert(!fitLibCode.includes(banned), `design-fit.ts stays client-safe (no "${banned}" in code)`);
 }
+
+// 8. exportText — the canvas shows the export's EXACT string (task c25031b9 round 2).
+const shrunkLayer = doc.layers[1] as Parameters<typeof fitWarningMessage>[0];
+assert(shrunk.exportText === shrunkLayer.text, "shrunk layer paints the FULL text, just smaller");
+const truncLayer = doc.layers[2] as Parameters<typeof fitWarningMessage>[0];
+assert(
+  trunc.exportText.endsWith("…") && trunc.exportText.length < truncLayer.text.length,
+  `truncated layer paints an ellipsized cut: ${JSON.stringify(trunc.exportText)}`,
+);
+assert(
+  trunc.exportText === designExportText(truncLayer, fitTextLayer(truncLayer)),
+  "exportText === the renderer's own painted string (parity)",
+);
+const styledInfo = byId.get("styled")!;
+const styledLayer = doc.layers[3] as Parameters<typeof fitWarningMessage>[0];
+assert(
+  styledLayer.uppercase === true && styledInfo.exportText === styledLayer.text.toUpperCase(),
+  `uppercase applied in exportText (${JSON.stringify(styledInfo.exportText)})`,
+);
+assert(editorSrc.includes("exportText"), "canvas renders the export's string at the export's size");
 
 console.log(`\n${failures === 0 ? "ALL PASS" : "FAILURES"}: ${passes} passed, ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

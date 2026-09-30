@@ -446,6 +446,10 @@ function LayerView({
   let fitBadge: React.ReactNode = null;
   if (layer.type === "text") {
     const sev = fit ? designFitSeverity(fit) : "ok";
+    // WYSIWYG (task c25031b9): once the server has spoken, the canvas shows
+    // the EXPORT's text at the EXPORT's size — not the user's wish. The
+    // properties panel still holds/edits the real, full layer.text.
+    const showExport = !!fit && sev !== "ok";
     inner = (
       <div
         style={{
@@ -453,19 +457,19 @@ function LayerView({
           height: "100%",
           color: layer.color,
           fontFamily: cssFamily(layer.fontFamily ?? "sans"),
-          fontSize: layer.fontSize,
+          fontSize: showExport ? fit!.fittedFontSize : layer.fontSize,
           fontWeight: layer.fontWeight ?? 400,
           lineHeight: layer.lineHeight ?? 1,
           letterSpacing: layer.letterSpacing ?? 0,
           textAlign: layer.align ?? "left",
-          textTransform: layer.uppercase ? "uppercase" : "none",
+          textTransform: showExport ? "none" : layer.uppercase ? "uppercase" : "none",
           whiteSpace: "pre-wrap",
           overflow: "hidden",
           boxSizing: "border-box",
           border: sev === "truncated" ? "1.5px dashed #f59e0b" : "1px dashed rgba(127,127,127,0.35)",
         }}
       >
-        {layer.text || " "}
+        {showExport ? fit!.exportText : layer.text || " "}
       </div>
     );
     // Export preview badges (task c25031b9): non-interactive, pointer-events

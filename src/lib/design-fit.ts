@@ -36,6 +36,11 @@ export interface DesignTextFitInfo {
   lines: number;
   /** True when even the fit floor could not hold the copy — the export ends in "…". */
   truncated: boolean;
+  /**
+   * The EXACT string the export paints (ellipsis + uppercase applied) — the
+   * canvas renders this so what you see equals what the PNG contains.
+   */
+  exportText: string;
 }
 
 export type DesignFitSeverity = "ok" | "shrunk" | "truncated";

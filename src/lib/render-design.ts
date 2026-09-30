@@ -182,6 +182,20 @@ function truncateForDisplay(text: string, fitted: { fontSize: number; lines: num
 }
 
 /**
+ * The EXACT string the renderer paints for a text layer (task c25031b9):
+ * truncation ellipsis + uppercase transform applied, in paint order. The
+ * editor's canvas renders THIS string so what you see equals what the export
+ * contains — single source of truth shared by layerDiv and analyzeDesignTextFit.
+ */
+export function designExportText(
+  layer: Extract<DesignLayer, { type: "text" }>,
+  fitted: { fontSize: number; lines: number; truncated: boolean },
+): string {
+  const display = truncateForDisplay(layer.text, fitted);
+  return layer.uppercase ? display.toUpperCase() : display;
+}
+
+/**
  * WYSIWYG fit analysis (task c25031b9): run the RENDERER'S OWN fit engine over
  * every text layer of a doc so the editor can warn before export. This is the
  * exact function /api/render-design paints with — same fonts, same opentype
@@ -204,9 +218,10 @@ export function analyzeDesignTextFit(doc: DesignDoc): DesignTextFitInfo[] {
         fittedFontSize: fitted.fontSize,
         lines: fitted.lines,
         truncated: fitted.truncated,
+        exportText: designExportText(t, fitted),
       });
     } catch {
-      out.push({ id: t.id, requestedFontSize: t.fontSize ?? 0, fittedFontSize: 0, lines: 0, truncated: true });
+      out.push({ id: t.id, requestedFontSize: t.fontSize ?? 0, fittedFontSize: 0, lines: 0, truncated: true, exportText: "" });
     }
   }
   return out;
@@ -221,8 +236,7 @@ function layerDiv(layer: DesignLayer): ReactNode {
     const fitted = fitTextLayer(layer2);
     const family = DESIGN_FAMILY_TO_REGISTRY[layer2.fontFamily ?? "sans"];
     const weight = normalizedWeight(family, layer2.fontWeight);
-    const display = truncateForDisplay(layer2.text, fitted);
-    const upper = layer2.uppercase ? display.toUpperCase() : display;
+    const upper = designExportText(layer2, fitted);
     return h(
       "div",
       {
