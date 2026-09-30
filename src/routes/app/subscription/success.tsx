@@ -44,8 +44,8 @@ function SubscriptionSuccessPage() {
         </h1>
 
         <p className="mt-6 animate-fade-in-up text-lg leading-relaxed text-emerald-200/80">
-          We&rsquo;re setting up your Relevate account now — that part is done by
-          hand, not automatically, so it can take a little while. When it&rsquo;s
+          Setting up your Relevate account is done by hand at our end, not
+          automatically, so it can lag behind the payment itself. When it&rsquo;s
           ready, sign in with the email address you used at checkout. Want an
           update sooner? Reply to your Stripe receipt and we&rsquo;ll tell you
           where it stands.
