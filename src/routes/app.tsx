@@ -1554,6 +1554,11 @@ function AppDashboard() {
                         California: agent name, DRE licence number and responsible broker identity are rendered when supplied (B&amp;P Code §10140.6). Confirm applicability with your responsible broker.
                       </p>
                     )}
+                    {jurisdiction === "SC" && (
+                      <p className="mt-1 text-xs text-amber-300/70">
+                        South Carolina: every advertisement must identify the full name of your brokerage firm (S.C. Code §40-57-135(E)(2)) — make sure Brokerage / Company above is filled in. SC requires no licence number or phone number on the asset; the Equal Housing Opportunity footer is a recommended convention.
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>

@@ -577,7 +577,7 @@ function ehoMarkDataUrl(ink: string): string {
 
 /** User-supplied disclosure segments, in strip order. Never fabricates: an
  * empty field contributes nothing. CA licence numbers use the DRE label. */
-function disclosureSegments(input: RenderTemplateInput, opts?: { scopedTx?: boolean }): string[] {
+export function disclosureSegments(input: RenderTemplateInput, opts?: { scopedTx?: boolean }): string[] {
   const segs: string[] = [];
   const state = (input.jurisdiction ?? "").trim().toUpperCase();
   // PRODUCT SCOPE (owner directive 2026-09-23): state-specific disclosure

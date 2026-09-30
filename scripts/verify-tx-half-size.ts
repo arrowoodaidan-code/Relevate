@@ -65,7 +65,7 @@ const check = (name: string, cond: boolean, detail = "") => {
 };
 
 for (const [name, templateId, w, kind] of CASES) {
-  const input: any = { ...base, contentType: kind, templateId };
+  const input: any = { ...base, contentType: kind, brandedTemplate: templateId };
   const plan = txFooterPlan(input, w, 15);
   const largest = largestContactPx(input, w);
   check(`${name}: plan.largestPx consistent with largestContactPx`, plan.largestPx === largest, `plan=${plan.largestPx} direct=${largest}`);
@@ -90,7 +90,7 @@ for (const [name, templateId, w, kind] of CASES) {
 
 // Long agent name: band fit interacts with the half-size plan (in-scope) or is
 // simply gated (out-of-scope).
-const longName: any = { ...base, agentName: "Guadalupe Fernández de Castileja y Mendoza-Ortiz", contentType: "flyer", templateId: "flyer-hero" };
+const longName: any = { ...base, agentName: "Guadalupe Fernández de Castileja y Mendoza-Ortiz", contentType: "flyer", brandedTemplate: "flyer-hero" };
 const planLong = txFooterPlan(longName, 1095, 15);
 if (!txInScope) {
   check("long-name: gated TX -> no broker segment, generic size", planLong.brokerSeg === null && planLong.brokerSize === 15, `broker=${planLong.brokerSize} seg=${planLong.brokerSeg}`);
@@ -101,7 +101,7 @@ if (!txInScope) {
 
 // B. SCOPED REFERENCE — the preserved #12 half-size implementation, asserted
 // regardless of scope so the math cannot rot while gated.
-const scopedPlan = txFooterPlanForScopedTx({ ...base, contentType: "flyer", templateId: "flyer-hero" } as any, 1275 - 180, 15);
+const scopedPlan = txFooterPlanForScopedTx({ ...base, contentType: "flyer", brandedTemplate: "flyer-hero" } as any, 1275 - 180, 15);
 check("scoped-ref: broker segment present when TX assumed in scope", scopedPlan.brokerSeg === "Broker Ruiz Residential Realty", String(scopedPlan.brokerSeg));
 check("scoped-ref: brokerSize >= largest/2", scopedPlan.brokerSize >= scopedPlan.largestPx / 2, `broker=${scopedPlan.brokerSize} largest=${scopedPlan.largestPx}`);
 check("scoped-ref: 48px name -> broker >= 24px", scopedPlan.largestPx === 48 && scopedPlan.brokerSize >= 24, `broker=${scopedPlan.brokerSize}`);
@@ -122,7 +122,7 @@ if (!txInScope) {
 }
 
 // The task's required proof: a NON-TX, NON-SC listing gets NO TX footer.
-const gaIn: any = { ...base, jurisdiction: "GA", contentType: "flyer", templateId: "flyer-hero" };
+const gaIn: any = { ...base, jurisdiction: "GA", contentType: "flyer", brandedTemplate: "flyer-hero" };
 const gaPlan = txFooterPlan(gaIn, 1275 - 180, 15);
 check("GA (non-TX, non-SC): NO TX broker segment", gaPlan.brokerSeg === null, String(gaPlan.brokerSeg));
 check("GA: brokerSize stays generic", gaPlan.brokerSize === 15, String(gaPlan.brokerSize));
@@ -132,16 +132,22 @@ const gaPng: string = (await renderMarketingPng(gaIn)) as unknown as string;
 check("GA: render OK (no TX footer baked)", typeof gaPng === "string" && gaPng.startsWith("data:image/png;base64,"));
 await writeFile(`${OUT}ga-flyer-hero-no-tx-footer.png`, Buffer.from(gaPng.slice("data:image/png;base64,".length), "base64"));
 
-// SC is IN scope: generic behaviour (SC has no render branches — the checklist
-// data drives SC compliance, not the disclosure strip), and never TX behaviour.
+// SC is IN scope: the disclosure strip stays generic (no TX-style broker
+// segment, licences render as supplied), but task 524f8e4b (PR #28) added an
+// SC render-time honesty warning: a missing brokerage name must be called out
+// citing S.C. Code 40-57-135(E)(2), and the message never demands a licence
+// or phone number (SC has no such requirement).
 const scPlan = txFooterPlan({ ...base, jurisdiction: "SC" } as any, 1275 - 180, 15);
 check("SC (in scope): generic strip, no TX broker segment", scPlan.brokerSeg === null, String(scPlan.brokerSeg));
 check("SC (in scope): licence numbers render unsuppressed (SC has no no-licence render branch)", scPlan.detailText.includes("998877"), scPlan.detailText);
-check("SC (in scope): no render-time state warnings (SC rules live in the checklist data, not here)",
-  disclosureWarnings({ jurisdiction: "SC", agentName: "Dana Ruiz" }).length === 0);
+const scWarnMissing = disclosureWarnings({ jurisdiction: "SC", agentName: "Dana Ruiz" });
+check("SC (in scope): missing brokerage -> render-time warning cites 40-57-135(E)(2) (task 524f8e4b)",
+  scWarnMissing.length === 1 && scWarnMissing[0].message.includes("40-57-135"), JSON.stringify(scWarnMissing));
+check("SC (in scope): brokerage supplied -> no render-time warnings",
+  disclosureWarnings({ jurisdiction: "SC", agentName: "Dana Ruiz", brokerageName: "Ruiz Residential Realty" }).length === 0);
 
 // CA contrast render (kept for visual inspection).
-const caIn: any = { ...base, jurisdiction: "CA", contentType: "flyer", templateId: "flyer-hero" };
+const caIn: any = { ...base, jurisdiction: "CA", contentType: "flyer", brandedTemplate: "flyer-hero" };
 const caWarn = disclosureWarnings({ jurisdiction: "CA", agentName: "Dana Ruiz", agentLicense: "TREC #998877", brokerName: "Ruiz Residential Realty", brokerLicense: "TREC #900112" });
 if (isStateInProductScope("CA")) {
   check("warnings: CA in scope -> info confirmation present", caWarn.some((m) => m.level === "info"), JSON.stringify(caWarn));

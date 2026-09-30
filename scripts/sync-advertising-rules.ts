@@ -26,7 +26,10 @@ const data = JSON.parse(readFileSync(JSON_PATH, "utf8")) as {
   rules: Record<string, unknown>[];
 };
 
-/** The rule key order in the research file — JSON.stringify equality depends on it. */
+/** The rule key order in the research file — JSON.stringify equality depends on it.
+ * v2.0.0 (pass 4) added an OPTIONAL `product_scope` key (value "hidden-2026-09"
+ * on 16 of 30 rules) placed after `confidence`; rules without it (the federal
+ * set + the new SC rules) simply omit it. */
 const KEY_ORDER = [
   "id",
   "jurisdiction",
