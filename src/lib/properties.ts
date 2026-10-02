@@ -187,15 +187,28 @@ export async function getPropertyWithContent(
 /**
  * Delete a property and all of its generated content (owner only).
  * Returns false when the property doesn't exist for this user.
+ *
+ * Order matters, and scripts/check-delete-property.ts guards it: generated_content.property_id
+ * has no ON DELETE CASCADE, so the child rows must be removed BEFORE the parent row. The previous
+ * version deleted the parent first and then the children, so every delete of a saved property
+ * raised Postgres 23503 (`generated_content_property_id_fkey`), which the API surfaced as
+ * HTTP 500 on DELETE /api/properties/:id while the listing stayed in place (live, 2026-10-02).
+ *
+ * Ownership is established before anything is removed, so a request naming someone else's
+ * property id cannot touch that property's content rows.
  */
 export async function deleteProperty(userId: string, propertyId: string): Promise<boolean> {
   await ensureSchema();
   const owned = await sql`
-    DELETE FROM properties WHERE id = ${propertyId} AND user_id = ${userId} RETURNING id
+    SELECT id FROM properties WHERE id = ${propertyId} AND user_id = ${userId}
   `;
   if (!owned || owned.length === 0) return false;
-  // Content rows are removed first (FK has no ON DELETE CASCADE in Neon schema).
-  await sql`DELETE FROM generated_content WHERE property_id = ${propertyId}`;
+  // Children first, then the parent, in one transaction: a half-applied delete would either
+  // strand content rows or leave the property behind.
+  await sql.transaction([
+    sql`DELETE FROM generated_content WHERE property_id = ${propertyId}`,
+    sql`DELETE FROM properties WHERE id = ${propertyId} AND user_id = ${userId}`,
+  ]);
   return true;
 }
 
