@@ -31,6 +31,10 @@
 #      post-payment routes (/app/subscription/success, /cancel) must render without a
 #      session. On 2026-09-28 app.tsx rendered none, so a buyer who had just paid landed on
 #      the studio, or on /login with ?session_id=… dropped.
+#   9. saved-property delete path — scripts/check-delete-property.ts: deleting a saved
+#      property must succeed (it answered HTTP 500 from a Postgres 23503 foreign-key
+#      violation on 2026-10-02 and left the listing in place) and must stay owner-scoped.
+#      Needs DATABASE_URL; the check builds and removes its own fixture rows.
 #
 # On success it prints the branch + HEAD sha it validated, so the publish that
 # follows is traceable to an exact commit.
@@ -68,7 +72,7 @@ command -v bun >/dev/null 2>&1 || { echo "FATAL: bun not on PATH"; exit 2; }
 command -v git >/dev/null 2>&1 || { echo "FATAL: git not on PATH"; exit 2; }
 
 echo
-echo "--- 1/8 Tree identity ---"
+echo "--- 1/9 Tree identity ---"
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || {
   echo "FATAL: not a git repository"
   exit 2
@@ -81,7 +85,7 @@ if [ "$BRANCH" != "main" ]; then
 fi
 
 echo
-echo "--- 2/8 Clean working tree ---"
+echo "--- 2/9 Clean working tree ---"
 PORCELAIN="$(git status --porcelain)"
 if [ -n "$PORCELAIN" ]; then
   echo "$PORCELAIN"
@@ -91,7 +95,7 @@ else
 fi
 
 echo
-echo "--- 3/8 Dependencies ---"
+echo "--- 3/9 Dependencies ---"
 if [ -d node_modules ]; then
   echo "node_modules present"
 else
@@ -99,7 +103,7 @@ else
 fi
 
 echo
-echo "--- 4/8 Typecheck vs baseline ($BASELINE) ---"
+echo "--- 4/9 Typecheck vs baseline ($BASELINE) ---"
 TSC_LOG="$(mktemp)"
 CUR="$(mktemp)"
 DIFF_LOG="$(mktemp)"
@@ -164,7 +168,7 @@ else
 fi
 
 echo
-echo "--- 5/8 Production build ---"
+echo "--- 5/9 Production build ---"
 if bun run build; then
   echo "build OK"
 else
@@ -172,7 +176,7 @@ else
 fi
 
 echo
-echo "--- 6/8 No vendor analytics / no committed secrets ---"
+echo "--- 6/9 No vendor analytics / no committed secrets ---"
 # Both gates decide their own pass/fail and print their own findings; preflight
 # only records the outcome so a single run covers every publish-blocking class.
 if bun scripts/check-no-vendor-analytics.ts; then
@@ -187,7 +191,7 @@ else
 fi
 
 echo
-echo "--- 7/8 Pricing truth ---"
+echo "--- 7/9 Pricing truth ---"
 if bun scripts/check-pricing-display.ts; then
   echo "pricing-display gate OK"
 else
@@ -195,13 +199,21 @@ else
 fi
 
 echo
-echo "--- 8/8 Layout outlets ---"
+echo "--- 8/9 Layout outlets ---"
 if bun scripts/check-layout-outlets.ts; then
   echo "layout-outlet gate OK"
 else
   note_fail "a layout route does not render its children (check output above) — every route registered under it can never appear, which is how /app/subscription/success and /cancel were unreachable after a buyer paid. Do not publish: fix the layout, never the check."
 fi
 
+echo
+echo
+echo "--- 9/9 Saved-property delete path ---"
+if bun scripts/check-delete-property.ts; then
+  echo "delete-property gate OK"
+else
+  note_fail "a saved property cannot be deleted (check output above) — on 2026-10-02 DELETE /api/properties/:id answered HTTP 500 (Postgres 23503, generated_content_property_id_fkey) and left the listing in place, so an agent could not remove their own listing. Do not publish: fix the delete path, never the check."
+fi
 echo
 echo "=============================================================="
 if [ "$FAILED" -ne 0 ]; then
