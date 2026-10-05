@@ -50,6 +50,12 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+// `export {}` marks this file as a module, which is what permits the top-level `await`s below.
+// Without it TypeScript rejects them as TS1375 ("'await' expressions are only allowed at the top
+// level of a file when that file is a module") and the preflight typecheck gate fails on the
+// script itself — even though the check runs fine under bun. Do not remove it.
+export {};
+
 // Imported after the env check so a missing DATABASE_URL reports as a gate failure with a
 // readable reason instead of a module-initialisation stack trace.
 const { sql } = await import("../src/lib/db");
