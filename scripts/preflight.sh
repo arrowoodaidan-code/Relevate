@@ -72,7 +72,7 @@ command -v bun >/dev/null 2>&1 || { echo "FATAL: bun not on PATH"; exit 2; }
 command -v git >/dev/null 2>&1 || { echo "FATAL: git not on PATH"; exit 2; }
 
 echo
-echo "--- 1/9 Tree identity ---"
+echo "--- 1/10 Tree identity ---"
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || {
   echo "FATAL: not a git repository"
   exit 2
@@ -85,7 +85,7 @@ if [ "$BRANCH" != "main" ]; then
 fi
 
 echo
-echo "--- 2/9 Clean working tree ---"
+echo "--- 2/10 Clean working tree ---"
 PORCELAIN="$(git status --porcelain)"
 if [ -n "$PORCELAIN" ]; then
   echo "$PORCELAIN"
@@ -95,7 +95,7 @@ else
 fi
 
 echo
-echo "--- 3/9 Dependencies ---"
+echo "--- 3/10 Dependencies ---"
 if [ -d node_modules ]; then
   echo "node_modules present"
 else
@@ -103,7 +103,7 @@ else
 fi
 
 echo
-echo "--- 4/9 Typecheck vs baseline ($BASELINE) ---"
+echo "--- 4/10 Typecheck vs baseline ($BASELINE) ---"
 TSC_LOG="$(mktemp)"
 CUR="$(mktemp)"
 DIFF_LOG="$(mktemp)"
@@ -168,7 +168,7 @@ else
 fi
 
 echo
-echo "--- 5/9 Production build ---"
+echo "--- 5/10 Production build ---"
 if bun run build; then
   echo "build OK"
 else
@@ -176,7 +176,7 @@ else
 fi
 
 echo
-echo "--- 6/9 No vendor analytics / no committed secrets ---"
+echo "--- 6/10 No vendor analytics / no committed secrets ---"
 # Both gates decide their own pass/fail and print their own findings; preflight
 # only records the outcome so a single run covers every publish-blocking class.
 if bun scripts/check-no-vendor-analytics.ts; then
@@ -191,7 +191,7 @@ else
 fi
 
 echo
-echo "--- 7/9 Pricing truth ---"
+echo "--- 7/10 Pricing truth ---"
 if bun scripts/check-pricing-display.ts; then
   echo "pricing-display gate OK"
 else
@@ -199,7 +199,7 @@ else
 fi
 
 echo
-echo "--- 8/9 Layout outlets ---"
+echo "--- 8/10 Layout outlets ---"
 if bun scripts/check-layout-outlets.ts; then
   echo "layout-outlet gate OK"
 else
@@ -208,11 +208,20 @@ fi
 
 echo
 echo
-echo "--- 9/9 Saved-property delete path ---"
+echo "--- 9/10 Saved-property delete path ---"
 if bun scripts/check-delete-property.ts; then
   echo "delete-property gate OK"
 else
   note_fail "a saved property cannot be deleted (check output above) — on 2026-10-02 DELETE /api/properties/:id answered HTTP 500 (Postgres 23503, generated_content_property_id_fkey) and left the listing in place, so an agent could not remove their own listing. Do not publish: fix the delete path, never the check."
+fi
+echo
+echo "--- 10/10 Session-cap gate (no uncapped INTERVAL '7 days' inserts) ---"
+UNCAPPED=$(grep -rn "INTERVAL '7 days'" src/ 2>/dev/null)
+if [ -n "$UNCAPPED" ]; then
+  echo "$UNCAPPED"
+  note_fail "a session insert in src/ sets expiry with SQL INTERVAL '7 days' and nothing caps it. The only session-creation implementation is src/lib/auth.ts createSession(), which caps at the user's access_expires_at via capExpiryAtWindow() so a session issued inside a time-boxed trial dies with the trial. A second insert bypasses that cap and hands 7-day sessions back to time-boxed accounts. Do not publish: route session creation through src/lib/auth.ts, never the check."
+else
+  echo "session-cap gate OK"
 fi
 echo
 echo "=============================================================="
