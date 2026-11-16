@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Navigation, RelevateMark } from "~/components";
+import { ComplianceScopeLine, Navigation, RelevateMark } from "~/components";
 import { getAllPosts } from "~/lib/blog";
 import { canonical, seoMeta } from "~/lib/seo";
 
@@ -128,6 +128,7 @@ function BlogIndexPage() {
             &copy; {new Date().getFullYear()} Relevate. All rights reserved.
           </p>
         </div>
+        <ComplianceScopeLine className="mx-auto mt-4 max-w-4xl text-center" />
       </footer>
     </div>
   );

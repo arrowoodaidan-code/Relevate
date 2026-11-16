@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Navigation, RelevateLockup, RelevateMark } from "~/components";
+import { ComplianceScopeLine, Navigation, RelevateLockup, RelevateMark } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 
 export const Route = createFileRoute("/about")({
@@ -358,6 +358,7 @@ function AboutPage() {
               &copy; {new Date().getFullYear()} Relevate. All rights reserved.
             </p>
           </div>
+          <ComplianceScopeLine className="mt-6 text-center sm:text-left" />
         </div>
       </footer>
     </div>

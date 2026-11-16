@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { CheckoutUnavailableDialog, Navigation, PricingCard, RelevateLockup } from "~/components";
+import { CheckoutUnavailableDialog, ComplianceScopeLine, Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
 import {
@@ -356,6 +356,7 @@ function PricingPage() {
               &copy; {new Date().getFullYear()} Relevate. All rights reserved.
             </p>
           </div>
+          <ComplianceScopeLine className="mt-6 text-center sm:text-left" />
         </div>
       </footer>
 
