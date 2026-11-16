@@ -32,6 +32,15 @@ function SignupPage() {
       setError("Password must be at least 6 characters");
       return;
     }
+    // The confirm-password check runs HERE, not as native `required`/`minLength` on the
+    // input: native validation can refuse the submit without anything our page renders
+    // (no visible feedback at all in headless/automation contexts, and even in a normal
+    // browser only a transient tooltip). An empty or mismatched confirm must always
+    // produce the inline error below instead of a silent no-op.
+    if (!confirmPassword) {
+      setError("Please confirm your password");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -152,8 +161,6 @@ function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="mt-1 block w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-4 py-2.5 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
                 placeholder="Repeat your password"
-                minLength={6}
-                required
               />
             </div>
 
