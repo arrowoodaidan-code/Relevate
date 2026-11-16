@@ -56,7 +56,7 @@ export function CheckoutUnavailableDialog({ unavailable, onClose, onRetry, retry
         </p>
 
         <p className="mt-3 text-xs leading-relaxed text-emerald-300/40">
-          Reason reported by this page: {unavailable.reason}
+          {unavailable.reason}
         </p>
 
         {unavailable.fallback ? (
