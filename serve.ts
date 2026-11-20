@@ -22,7 +22,8 @@ import { disclosureWarnings } from "./src/lib/advertising-rules";
 import { resolveRenderSuggestion } from "./src/lib/render-suggestions";
 import { captureDemoLead, validateDemoLead } from "./src/lib/leads";
 import { sendTransactionalEmail } from "./src/lib/email";
-import { deleteProperty, getPropertyWithContent, getUsageSummary, listProperties, upsertPropertyWithContent } from "./src/lib/properties";
+import { countListingsThisMonth, deleteProperty, getPropertyWithContent, getUsageSummary, listProperties, upsertPropertyWithContent } from "./src/lib/properties";
+import { quotaRefusalFor, refusalFor, resolveEntitlement, type EntitlementRefusal } from "./src/lib/entitlement";
 import { createTemplate, deleteTemplate, getTemplate, listTemplates, updateTemplate, validateTemplatePayload } from "./src/lib/templates";
 import { renderDesignDoc, analyzeDesignTextFit } from "./src/lib/render-design";
 import type { DesignDoc } from "./src/lib/design";
@@ -359,7 +360,7 @@ for (let attempt = 1; ; attempt++) {
           const user = await authenticate(req);
           if (!user) return Response.json({ success: false, error: "Authentication required. Please log in." }, { status: 401 });
           try {
-            const usage = await getUsageSummary(user.subscription_tier, user.id);
+            const usage = await getUsageSummary(user, user.id);
             return Response.json({ success: true, usage });
           } catch (error) {
             console.error("API /api/usage error:", error);
@@ -585,6 +586,28 @@ for (let attempt = 1; ; attempt++) {
             );
           }
 
+          // Entitlement gate — BEFORE any validation, usage or OpenAI call, so a
+          // refused account pays nothing (spec: /api/generate must refuse once the
+          // trial has ended or the monthly limit is reached, with a structured
+          // message naming the real Stripe checkout).
+          const ent = resolveEntitlement(user);
+          let refusal: EntitlementRefusal | null = refusalFor(ent);
+          if (!refusal && (ent.kind === "trial" || ent.kind === "plan")) {
+            const used = await countListingsThisMonth(user.id);
+            refusal = quotaRefusalFor(ent, used);
+          }
+          if (refusal) {
+            return Response.json(
+              {
+                success: false,
+                error: refusal.message,
+                code: refusal.code,
+                upgrade: refusal.upgrade,
+              },
+              { status: 402 },
+            );
+          }
+
           try {
             const body = await req.json();
             const { contentType, details } = body as {
@@ -732,6 +755,17 @@ for (let attempt = 1; ; attempt++) {
             return Response.json(
               { error: "Authentication required. Please log in." },
               { status: 401 },
+            );
+          }
+
+          // Entitlement gate (no listing-quota check: image limits per tier are an
+          // owner decision not yet made — but a trial-ended / no-plan / inactive
+          // account must not burn per-image cost either).
+          const imageRefusal: EntitlementRefusal | null = refusalFor(resolveEntitlement(user));
+          if (imageRefusal) {
+            return Response.json(
+              { success: false, error: imageRefusal.message, code: imageRefusal.code, upgrade: imageRefusal.upgrade },
+              { status: 402 },
             );
           }
 

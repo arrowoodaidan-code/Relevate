@@ -14,7 +14,7 @@
  * Server-only (uses the eager Neon client from "./db").
  */
 import { sql } from "./db";
-import { isFullAccessTier } from "./auth";
+import { resolveEntitlement, refusalFor, type EntitlementInput } from "./entitlement";
 
 export interface SavedProperty {
   id: string;
@@ -39,14 +39,17 @@ export interface UsageSummary {
   used: number;
   limit: number | null;
   remaining: number | null;
+  /** Listings-left sentence, for the welcome text. */
   label: string;
+  /** Header-chip text. For a trial this is "Trial — N days left", not the tier name. */
+  chip: string;
+  /** True when the signup trial's 14 days are over (subscription required). */
+  trialEnded: boolean;
+  /** Refusal code when the account cannot generate at all, else null. */
+  code: string | null;
+  /** Where the upgrade prompt points (Stripe checkout or /pricing), else null. */
+  upgradeUrl: string | null;
 }
-
-/** Monthly listing caps per tier (Team/demo = unlimited). */
-const TIER_MONTHLY_LIMITS: Record<string, number> = {
-  starter: 5,
-  pro: 20,
-};
 
 async function ensureSchema(): Promise<void> {
   await sql`
@@ -223,21 +226,107 @@ export async function countListingsThisMonth(userId: string): Promise<number> {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Build the "listings left this month" summary for the user's tier. */
-export async function getUsageSummary(tier: string, userId: string): Promise<UsageSummary> {
-  const unlimited = isFullAccessTier(tier);
-  const limit = unlimited ? null : (TIER_MONTHLY_LIMITS[tier] ?? 5);
+/** Build the "listings left this month" summary from the account's real state. */
+export async function getUsageSummary(
+  account: EntitlementInput,
+  userId: string,
+): Promise<UsageSummary> {
+  const ent = resolveEntitlement(account);
+  const tier = String(account.subscription_tier ?? "");
   const used = await countListingsThisMonth(userId);
-  if (unlimited) {
-    return { tier, unlimited: true, used, limit: null, remaining: null, label: "Unlimited listings" };
+  const refusal = refusalFor(ent);
+  const upgradeUrl = refusal?.upgrade.url ?? null;
+
+  if (ent.kind === "unlimited") {
+    return {
+      tier,
+      unlimited: true,
+      used,
+      limit: null,
+      remaining: null,
+      label: "Unlimited listings",
+      chip: "∞ Unlimited",
+      trialEnded: false,
+      code: null,
+      upgradeUrl: null,
+    };
   }
-  const remaining = Math.max((limit ?? 0) - used, 0);
+
+  if (ent.kind === "trial") {
+    const limit = ent.limit;
+    if (ent.ended) {
+      return {
+        tier,
+        unlimited: false,
+        used,
+        limit,
+        remaining: 0,
+        label: "Your 14-day trial has ended — subscribe to keep generating.",
+        chip: "Trial ended",
+        trialEnded: true,
+        code: refusal?.code ?? "TRIAL_ENDED",
+        upgradeUrl: upgradeUrl ?? null,
+      };
+    }
+    const remaining = Math.max(limit - used, 0);
+    const dayWord = ent.daysLeft === 1 ? "day" : "days";
+    return {
+      tier,
+      unlimited: false,
+      used,
+      limit,
+      remaining,
+      label: `${remaining} of ${limit} listings left this month`,
+      chip: ent.daysLeft <= 0 ? "Trial — ends today" : `Trial — ${ent.daysLeft} ${dayWord} left`,
+      trialEnded: false,
+      code: null,
+      upgradeUrl: null,
+    };
+  }
+
+  if (ent.kind === "plan") {
+    const limit = ent.limit;
+    const remaining = Math.max(limit - used, 0);
+    const listingsLabel = `${remaining} of ${limit} listings left this month`;
+    if (refusal) {
+      return {
+        tier,
+        unlimited: false,
+        used,
+        limit,
+        remaining: 0,
+        label: "Your subscription is no longer active — resubscribe to keep generating.",
+        chip: "No active plan",
+        trialEnded: false,
+        code: refusal.code,
+        upgradeUrl: upgradeUrl ?? null,
+      };
+    }
+    return {
+      tier,
+      unlimited: false,
+      used,
+      limit,
+      remaining,
+      label: listingsLabel,
+      chip: listingsLabel,
+      trialEnded: false,
+      code: null,
+      upgradeUrl: null,
+    };
+  }
+
+  // Unknown tier — no silent fallback: render as "no plan", never as a quota.
   return {
     tier,
     unlimited: false,
     used,
-    limit,
-    remaining,
-    label: `${remaining} of ${limit} listings left this month`,
+    limit: null,
+    remaining: 0,
+    label: "This account has no plan — subscribe to keep generating.",
+    chip: "No plan",
+    trialEnded: false,
+    code: refusal?.code ?? "NO_PLAN",
+    upgradeUrl: upgradeUrl ?? null,
   };
 }

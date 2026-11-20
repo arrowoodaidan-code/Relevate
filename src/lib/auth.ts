@@ -4,6 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { sql as neonSql } from "../db";
+import { TRIAL_DURATION_DAYS, TRIAL_TIER, isTrialTier } from "./entitlement";
 
 // Shared Neon client singleton. Reuse one pooled connection per serverless
 // instance instead of creating a fresh client per call (the documented
@@ -24,6 +25,9 @@ export interface User {
   email: string;
   name: string;
   subscription_tier: string;
+  subscription_status: string | null;
+  stripe_customer_id: string | null;
+  access_expires_at: string | null;
   created_at: string;
 }
 
@@ -43,11 +47,10 @@ const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
  * Full-access tiers: "demo" and "team" get everything.
- * Future tier-gating code should use this as its single source of truth.
+ * Single source of truth is src/lib/entitlement.ts (re-exported here for the
+ * existing importers — same function, one definition).
  */
-export function isFullAccessTier(tier: string): boolean {
-  return tier === "demo" || tier === "team";
-}
+export { isFullAccessTier } from "./entitlement";
 
 /**
  * Hash a password using Node.js crypto (scrypt with random salt).
@@ -125,18 +128,37 @@ export async function signup(
   const id = randomUUID();
   const passwordHash = await hashPassword(password);
   const now = new Date().toISOString();
+  // Owner decision (2026-11-20): the free portion is a 14-day trial of the
+  // lowest tier, written as a REAL access window — not a permanent paid-tier
+  // label. Tier 'free' (never reuse a paid plan's name), Starter's
+  // 5 listings/month, access_expires_at = now + 14 days. NULL expiry means
+  // unrestricted, so the window MUST be written here; nothing downstream
+  // grants it implicitly.
+  const trialStartsAt = now;
+  const trialExpiresAt = new Date(
+    Date.now() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
 
   // Insert user
   await db`
-    INSERT INTO users (id, email, name, subscription_tier, password_hash, created_at)
-    VALUES (${id}, ${email}, ${name}, 'starter', ${passwordHash}, ${now})
+    INSERT INTO users (id, email, name, subscription_tier, password_hash, created_at, access_starts_at, access_expires_at)
+    VALUES (${id}, ${email}, ${name}, ${TRIAL_TIER}, ${passwordHash}, ${now}, ${trialStartsAt}, ${trialExpiresAt})
   `;
 
   // Create session
   const session = await createSession(id);
 
   return {
-    user: { id, email, name, subscription_tier: "starter", created_at: now },
+    user: {
+      id,
+      email,
+      name,
+      subscription_tier: TRIAL_TIER,
+      subscription_status: null,
+      stripe_customer_id: null,
+      access_expires_at: trialExpiresAt,
+      created_at: now,
+    },
     session,
   };
 }
@@ -198,6 +220,7 @@ export async function login(
 
   const users = await db`
     SELECT id, email, name, subscription_tier, password_hash, created_at,
+           subscription_status, stripe_customer_id,
            access_starts_at, access_expires_at
     FROM users WHERE email = ${email}
   `;
@@ -213,7 +236,13 @@ export async function login(
 
   // Time-boxed trial gate — only reached with a correct password, so the
   // distinct window messages never reveal whether an email exists.
-  assertAccessWindowOpen(row);
+  // The signup trial (tier 'free') is exempt: when its 14 days are up the
+  // agent MUST still be able to log in to reach the upgrade prompt —
+  // /api/generate refuses generation per-request instead. Named
+  // demo/marketing trials (any other tier with a window) keep the hard gate.
+  if (!isTrialTier(String(row.subscription_tier))) {
+    assertAccessWindowOpen(row);
+  }
 
   const session = await createSession(row.id);
 
@@ -223,6 +252,11 @@ export async function login(
       email: row.email,
       name: row.name,
       subscription_tier: row.subscription_tier,
+      subscription_status: row.subscription_status ?? null,
+      stripe_customer_id: row.stripe_customer_id ?? null,
+      access_expires_at: row.access_expires_at
+        ? new Date(row.access_expires_at).toISOString()
+        : null,
       created_at: String(row.created_at),
     },
     session,
@@ -237,14 +271,25 @@ export async function createSession(userId: string): Promise<Session> {
   const id = randomUUID();
   const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
   // Cap the 7-day session at the user's trial window end (if any), so a
-  // session issued inside a 4-day trial dies with the trial.
+  // session issued inside a 4-day trial dies with the trial. For the signup
+  // trial (tier 'free') the cap applies only while the window is still open:
+  // once the 14 days are up the agent must still be able to log in to reach
+  // the upgrade prompt, so their session gets the normal 7 days.
   const windowRows = await db`
-    SELECT access_expires_at FROM users WHERE id = ${userId} LIMIT 1
+    SELECT access_expires_at, subscription_tier FROM users WHERE id = ${userId} LIMIT 1
   `;
-  const accessExpiresAt = windowRows.length > 0 ? (windowRows[0].access_expires_at ?? null) : null;
+  const accessExpiresAt =
+    windowRows.length > 0 ? (windowRows[0].access_expires_at ?? null) : null;
+  const trialTier = windowRows.length > 0 && isTrialTier(String(windowRows[0].subscription_tier));
+  const windowOpen =
+    accessExpiresAt != null && Date.now() < new Date(accessExpiresAt).getTime();
+  const capAt = accessExpiresAt
+    ? new Date(accessExpiresAt).toISOString()
+    : null;
+  const effectiveCap = trialTier && !windowOpen ? null : capAt;
   const expiresAt = capExpiryAtWindow(
     new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
-    accessExpiresAt ? new Date(accessExpiresAt).toISOString() : null,
+    effectiveCap,
   );
 
   await db`
@@ -268,6 +313,7 @@ export async function verifySession(
   const rows = await db`
     SELECT s.id as sid, s.user_id, s.token, s.expires_at,
            u.id, u.email, u.name, u.subscription_tier, u.created_at,
+           u.subscription_status, u.stripe_customer_id,
            u.access_expires_at
     FROM sessions s
     JOIN users u ON s.user_id = u.id
@@ -279,7 +325,13 @@ export async function verifySession(
   const row = rows[0];
   const expiresAt = new Date(row.expires_at);
   // Time-boxed trial: a session must not outlive the user's access window.
-  const windowClosed = row.access_expires_at != null && Date.now() >= new Date(row.access_expires_at).getTime();
+  // The signup trial (tier 'free') is exempt from the hard session kill —
+  // an agent whose trial ended logs back in to reach the upgrade prompt,
+  // and entitlement is enforced per-request in /api/generate instead.
+  const windowClosed =
+    row.access_expires_at != null &&
+    Date.now() >= new Date(row.access_expires_at).getTime() &&
+    !isTrialTier(String(row.subscription_tier));
 
   if (expiresAt < new Date() || windowClosed) {
     // Session expired, or the user's trial window has closed — clean it up
@@ -294,6 +346,11 @@ export async function verifySession(
       email: row.email,
       name: row.name,
       subscription_tier: row.subscription_tier,
+      subscription_status: row.subscription_status ?? null,
+      stripe_customer_id: row.stripe_customer_id ?? null,
+      access_expires_at: row.access_expires_at
+        ? new Date(row.access_expires_at).toISOString()
+        : null,
       created_at: String(row.created_at),
     },
     session: {

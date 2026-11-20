@@ -494,11 +494,11 @@ function Home() {
             <p className="mt-6 text-sm text-emerald-300/50">
               Starter is {STARTER_MONTHLY.price}
               {STARTER_MONTHLY.period}, up to 5 listings a month, billed through Stripe
-              until you cancel. No free trial. Or{" "}
+              until you cancel. Or{" "}
               <a href="/signup" className="underline hover:text-emerald-100">
                 create a free account
               </a>{" "}
-              for up to 5 listings a month at no charge.
+              for a 14-day trial with 5 listings a month — no credit card required.
             </p>
           </div>
         </div>

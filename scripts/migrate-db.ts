@@ -11,12 +11,20 @@ async function migrate() {
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
-      subscription_tier TEXT NOT NULL DEFAULT 'starter',
+      subscription_tier TEXT NOT NULL DEFAULT 'free',
       password_hash TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `;
   console.log("✓ users table");
+
+  // Entitlement enforcement (2026-11-20): the signup trial tier is 'free'.
+  // On an existing database the column default is still 'starter' from the
+  // first migration — point it at the trial tier so no future INSERT defaults
+  // to a paid plan. Changing a DEFAULT touches NO existing rows; converting
+  // existing accounts is scripts/migrate-entitlement-accounts.ts (owner
+  // approval required before it is run).
+  await db`ALTER TABLE users ALTER COLUMN subscription_tier SET DEFAULT 'free'`;
 
   await db`
     CREATE TABLE IF NOT EXISTS sessions (

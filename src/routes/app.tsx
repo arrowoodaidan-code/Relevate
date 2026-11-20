@@ -50,6 +50,10 @@ interface UsageSummary {
   limit: number | null;
   remaining: number | null;
   label: string;
+  chip?: string | null;
+  trialEnded?: boolean;
+  code?: string | null;
+  upgradeUrl?: string | null;
 }
 interface SavedContentRow {
   content_type: string;
@@ -377,6 +381,7 @@ function AppDashboard() {
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [genUpgrade, setGenUpgrade] = useState<{ url: string; label: string } | null>(null);
   // Fair Housing guardrail (task 01bc80ec): server-side risk-pattern result.
   // flagged=true -> hits survived the strict retry; the UI must show them.
   // flagged=false with repaired=true -> the retry produced clean copy; the
@@ -628,6 +633,7 @@ function AppDashboard() {
     renderedBodyRef.current = null;
     setRenderError(null);
     setFairHousingWarning(null);
+    setGenUpgrade(null);
     setActiveTab("result");
 
     try {
@@ -648,6 +654,11 @@ function AppDashboard() {
         void loadSavedProperties();
       } else {
         setGenError(data.error || "No content was generated. Please try again with more property details.");
+        setGenUpgrade(
+          data.upgrade && typeof data.upgrade.url === "string"
+            ? { url: data.upgrade.url, label: data.upgrade.label || "Upgrade" }
+            : null,
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unexpected error occurred.";
@@ -1174,12 +1185,16 @@ function AppDashboard() {
                 }`}
                 title={usage.unlimited ? "Your plan includes unlimited listings" : "Listings remaining this month"}
               >
-                {usage.unlimited ? "∞ Unlimited" : usage.label}
+                {usage.unlimited ? "∞ Unlimited" : usage.chip ?? usage.label}
               </span>
             )}
             <span className="hidden text-sm text-emerald-300/60 sm:inline">{user.email}</span>
             <span className="badge-shimmer rounded-full bg-emerald-900/50 px-3 py-1 text-xs font-medium text-emerald-300/80 capitalize">
-              {user.subscription_tier === "demo" ? "⭐ Demo" : user.subscription_tier}
+              {user.subscription_tier === "demo"
+                ? "⭐ Demo"
+                : user.subscription_tier === "free"
+                  ? "Trial"
+                  : user.subscription_tier}
             </span>
             <button
               onClick={handleLogout}
@@ -1884,6 +1899,16 @@ function AppDashboard() {
                     </div>
                     <h3 className="text-base font-semibold text-emerald-100">Generation Failed</h3>
                     <p className="mt-2 max-w-sm text-sm text-emerald-300/50">{genError}</p>
+                    {genUpgrade && (
+                      <a
+                        href={genUpgrade.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-5 rounded-lg wood-button px-4 py-2 text-sm font-semibold text-emerald-100 shadow-sm"
+                      >
+                        {genUpgrade.label}
+                      </a>
+                    )}
                     <button
                       onClick={handleGenerate}
                       className="mt-6 rounded-lg wood-button px-4 py-2 text-sm font-semibold text-emerald-100 shadow-sm"
