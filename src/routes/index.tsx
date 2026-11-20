@@ -122,7 +122,7 @@ const steps = [
     step: "01",
     title: "Enter your listing details",
     description:
-      "Fill in the basics — address, price, bedrooms, standout features. Or import directly from the MLS.",
+      "Fill in the basics — address, price, bedrooms, standout features. Or upload a listing screenshot and Relevate fills the form for you.",
     color: "bg-gradient-to-br from-emerald-800 to-emerald-700 text-emerald-100",
   },
   {
