@@ -331,7 +331,11 @@ export async function generateContent(
   if (process.env.OPENAI_API_KEY && source === "openai") {
     try {
       const retryContent = await generateWithOpenAI(contentType, details, firstScan);
-      const capped = contentType === "social-media-post" ? capHashtags(retryContent) : retryContent;
+      // Bracketed-placeholder guard: the strict retry is a fresh generation and
+      // can emit placeholders exactly like the first pass — scrub it like every
+      // other candidate (the first pass is stripped earlier in this function).
+      const stripped = stripBracketPlaceholders(retryContent);
+      const capped = contentType === "social-media-post" ? capHashtags(stripped) : stripped;
       const retryScan = scanFairHousing(capped);
       if (retryScan.clean) {
         return {

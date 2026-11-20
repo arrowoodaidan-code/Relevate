@@ -86,6 +86,11 @@ export interface PropertyDetails {
   lotSize?: string;
   description: string;
   keyFeatures: string[];
+  /** Open-house date/time as supplied by the agent (free text). Used verbatim by
+   *  the open-house flyer; when absent the copy simply omits it — never a
+   *  placeholder, never an invented date. */
+  openHouseDate?: string;
+  openHouseTime?: string;
   images?: string[];
   tone?: Tone;
   style?: string;
@@ -154,7 +159,7 @@ Write 3-4 paragraphs, starting with a strong hook. Include an "About the Agent" 
 Address: ${details.address}
 Price: $${details.price.toLocaleString()}
 Bedrooms: ${details.bedrooms} | Bathrooms: ${details.bathrooms} | Sq Ft: ${details.squareFeet.toLocaleString()}
-Key Features: ${details.keyFeatures.join(", ")}
+Key Features: ${details.keyFeatures.join(", ")}${details.openHouseDate?.trim() ? `\nOpen house date: ${details.openHouseDate.trim()}` : ""}${details.openHouseTime?.trim() ? `\nOpen house time: ${details.openHouseTime.trim()}` : ""}
 Description: ${details.description}
 
 Format as:
@@ -162,7 +167,8 @@ Format as:
 2. SUBHEADLINE: Brief value proposition (max 15 words)
 3. HIGHLIGHTS: 5-6 bullet points of top features
 4. DIRECTIONS: One short line of genuine directions ONLY if they can be inferred from the address; otherwise omit this section entirely — never write a placeholder
-5. CONTACT: Agent contact information section with CTA to RSVP (use the agent's real name/contact details supplied in this task; if a detail was not supplied, omit it — never write a placeholder for it)
+5. OPEN HOUSE DATE/TIME: when a date and time were provided above, print them prominently on one line exactly as supplied (e.g. "OPEN HOUSE: Saturday, November 22 · 1-3 PM") — never alter, approximate or invent them; when they were NOT provided, omit this line entirely — never write a placeholder for it
+6. CONTACT: Agent contact information section with CTA to RSVP (use the agent's real name/contact details supplied in this task; if a detail was not supplied, omit it — never write a placeholder for it)
 
 The tone should be exciting and inviting. Use emojis sparingly where appropriate.`,
   },
@@ -207,9 +213,9 @@ Structure:
    - Property highlights (3-4 short bullets using only the "-" character)
    - Feature callout (spotlight on the best feature)
    - Virtual tour/open house invitation
-   - Agent signature with placeholder contact info
+   - Agent signature using the agent name/phone/email supplied in this task (omit any detail that was not supplied — never a placeholder)
    - P.S. with urgency trigger (e.g. "just listed", "price reduced", "open house this Sunday")
-4. CTA: Button text on one line, then the link placeholder on the next line
+4. CTA: Button text on one line. On the next line, use the real listing/tour URL ONLY if one was supplied in this task; if no URL was supplied, write a one-line invitation to reply to the email or call the agent instead — never a bracketed placeholder and never an invented URL
 
 Make it sound urgent but not pushy. Output only the email content itself — no code fences, no JSON, no commentary.`,
   },
