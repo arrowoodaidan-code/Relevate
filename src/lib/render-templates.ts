@@ -111,6 +111,10 @@ export interface RenderTemplateInput {
   baths?: string;
   sqft?: string;
   agentPhone?: string;
+  /** Open-house date/time line (flyer layouts only, optional): when present the
+   *  flyer body card renders a dedicated "OPEN HOUSE" strip above the body copy.
+   *  Absent -> nothing rendered (no placeholder) and the layout is unchanged. */
+  openHouseDateTime?: string;
   /** Advertising-disclosure footer fields (task 834b0e71) — ALL user-supplied,
    * never fabricated; an absent/empty field renders NOTHING (no placeholder
    * text, no brackets). Rendered by the branded native templates ONLY

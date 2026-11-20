@@ -336,7 +336,7 @@ export function validateRenderRequest(value: unknown): { ok: true; data: RenderR
   }
   for (const key of ["title", "agentName", "brandStyle"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 500)) return { ok: false, error: `${key} must be a short string` };
   // R5 structured listing data (additive, optional): short display strings only.
-  for (const key of ["price", "beds", "baths", "sqft", "agentPhone"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 80)) return { ok: false, error: `${key} must be a short string` };
+  for (const key of ["price", "beds", "baths", "sqft", "agentPhone", "openHouseDateTime"] as const) if (raw[key] != null && (typeof raw[key] !== "string" || raw[key].length > 80)) return { ok: false, error: `${key} must be a short string` };
   // Disclosure-footer fields (task 834b0e71, additive + optional): short
   // user-supplied strings, a 2-letter jurisdiction, and strict booleans. All
   // absent → identical behaviour to before (EHO footer defaults ON in the
@@ -366,7 +366,7 @@ export function validateRenderRequest(value: unknown): { ok: true; data: RenderR
   // "[Your Phone Number]" on a finished flyer. jurisdiction is regex-validated
   // (2 letters) and the remaining fields are booleans/images, so they are not
   // checked.
-  for (const key of ["body", "title", "agentName", "brandStyle", "price", "beds", "baths", "sqft", "agentPhone", "brokerageName", "agentLicense", "brokerName", "brokerLicense"] as const) {
+  for (const key of ["body", "title", "agentName", "brandStyle", "price", "beds", "baths", "sqft", "agentPhone", "openHouseDateTime", "brokerageName", "agentLicense", "brokerName", "brokerLicense"] as const) {
     if (typeof raw[key] === "string") {
       const token = findBracketPlaceholder(raw[key] as string);
       if (token) return { ok: false, error: `${key} contains a bracketed placeholder ${token} — remove it or supply the real value, then render again.` };

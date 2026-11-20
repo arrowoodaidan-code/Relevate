@@ -90,6 +90,8 @@ function applySavedDetailsToForm(
     price: typeof d.price === "number" && d.price > 0 ? formatPrice(String(d.price)) : prev.price,
     features: Array.isArray(d.keyFeatures) ? (d.keyFeatures as string[]).slice(0, 8) : prev.features,
     sellingPoints: typeof d.description === "string" ? d.description : prev.sellingPoints,
+    openHouseDate: typeof d.openHouseDate === "string" ? d.openHouseDate : prev.openHouseDate,
+    openHouseTime: typeof d.openHouseTime === "string" ? d.openHouseTime : prev.openHouseTime,
   }));
 }
 
@@ -119,6 +121,12 @@ interface FormDetails {
   price: string;
   features: string[];
   sellingPoints: string;
+  /** Open-house date/time (free text, e.g. "Saturday, November 22" / "1-3 PM").
+   *  Used only by the open-house flyer: passed to the generation prompt and to
+   *  the flyer renderer as a dedicated date/time strip. Optional - an absent
+   *  value renders nothing, never a placeholder or an invented date. */
+  openHouseDate: string;
+  openHouseTime: string;
 }
 
 type FormContentType =
@@ -223,6 +231,10 @@ function buildApiDetails(
     // use these verbatim in contact sections instead of inventing brackets.
     ...(agentPhone.trim() ? { agentPhone: agentPhone.trim() } : {}),
     ...(agentEmail.trim() ? { agentEmail: agentEmail.trim() } : {}),
+    // Open-house date/time (open-house flyer only in the UI) — optional; absent
+    // fields are omitted so the prompt is never handed an empty date to fill.
+    ...(form.openHouseDate.trim() ? { openHouseDate: form.openHouseDate.trim() } : {}),
+    ...(form.openHouseTime.trim() ? { openHouseTime: form.openHouseTime.trim() } : {}),
   };
 }
 
@@ -358,6 +370,8 @@ function AppDashboard() {
     price: "$450,000",
     features: [],
     sellingPoints: "",
+    openHouseDate: "",
+    openHouseTime: "",
   });
   const [contentType, setContentType] = useState<FormContentType>("property-description");
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
@@ -769,6 +783,9 @@ function AppDashboard() {
           : "") || "Your Next Home";
       const effBody = fieldOverrides?.body ?? generatedContent ?? "";
       const effAgentName = fieldOverrides?.agentName ?? agentName;
+      // Display string for the open-house strip: "date · time", or whichever of
+      // the two was supplied. Built from the CURRENT form state.
+      const openHouseWhen = [details.openHouseDate.trim(), details.openHouseTime.trim()].filter(Boolean).join(" · ");
       const payload: Record<string, unknown> = {
         type: renderType,
         title,
@@ -786,12 +803,18 @@ function AppDashboard() {
           agentPhone: fieldOverrides?.agentPhone ?? agentPhone, // R6 agent-contact state
         }),
         ...(brandedTemplate ? { brandedTemplate } : {}),
-        // Social "first property photo as background" default (owner request): send the
-        // first property photo as the bg when rendering a native social post with no AI
-        // image. socialPhoto auto-adds a legibility scrim so text stays readable.
-        // Honored unless photo-less Classic chosen explicitly.
-        ...((generatedImage || (renderType === "social" && propertyPhotos[0] && brandedTemplate !== "social-classic"))
+        // First property photo for BOTH formats (owner-reported defect: a flyer with an
+        // uploaded photo fell back to the photo-less layout because the photo was only
+        // attached for social). socialPhoto uses it as the full-bleed background;
+        // flyerHero renders it in the photo slot. An AI generated image, when present,
+        // still wins. A photo-less Classic layout chosen explicitly (flyer-classic /
+        // social-classic) stays photo-less: those layouts ignore imageDataUrl, and we
+        // do not send it either.
+        ...(((generatedImage || propertyPhotos[0]) && brandedTemplate !== "flyer-classic" && brandedTemplate !== "social-classic")
           ? { imageDataUrl: generatedImage || propertyPhotos[0] } : {}),
+        // Open-house date/time when supplied: the flyer template renders it as a
+        // dedicated strip above the body copy. Absent -> field omitted entirely.
+        ...(openHouseWhen ? { openHouseDateTime: openHouseWhen } : {}),
         ...((() => {
           // Resolve brandStyle ONLY from genuine strings. A non-string (e.g. the
           // DOM click-event object, if the handler were ever wired directly as
@@ -922,7 +945,11 @@ function AppDashboard() {
       // never stick forever, even when an abort wouldn't propagate.
       setIsRendering(false);
     }
-  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, narMember, ehoFooter, ehoMark, generatedImage, templateDescription, suggestionStyle, brandedTemplate]);
+  // propertyPhotos is read inside the payload and MUST be a dep: without it the
+  // callback kept a stale closure (a photo uploaded after the last details edit
+  // was invisible to the renderer) — part of the owner-reported flyer-photo
+  // defect. openHouseDate/openHouseTime live on `details`, already a dep.
+  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, narMember, ehoFooter, ehoMark, generatedImage, templateDescription, suggestionStyle, brandedTemplate, propertyPhotos]);
 
 
   // In-place editing of the native rendered flyer/social (NativeInlineEditor).
@@ -1356,6 +1383,31 @@ function AppDashboard() {
                     className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
                   />
                 </div>
+
+                {contentType === "open-house-flyer" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-200/80">Open House Date</label>
+                      <input
+                        type="text"
+                        value={details.openHouseDate}
+                        onChange={(e) => setDetails((p) => ({ ...p, openHouseDate: e.target.value }))}
+                        placeholder="e.g. Saturday, November 22"
+                        className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-200/80">Open House Time</label>
+                      <input
+                        type="text"
+                        value={details.openHouseTime}
+                        onChange={(e) => setDetails((p) => ({ ...p, openHouseTime: e.target.value }))}
+                        placeholder="e.g. 1:00 - 3:00 PM"
+                        className="mt-1 w-full rounded-lg border border-emerald-800/40 bg-[#050f05]/60 px-3 py-2 text-sm text-emerald-100 placeholder-emerald-600/50 focus-ring-forest outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-emerald-200/80">Key Features</label>

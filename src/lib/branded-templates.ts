@@ -832,7 +832,16 @@ function flyerHero(input: RenderTemplateInput) {
   // Body card 1126..1410 (card bottom 1410 — gate-consistent; leaves clear
   // breathing room from the gold rule so a 2-line address never collides).
   const BODY_TOP = 1126, BODY_H = 284;
-  const bodyFit = fitBlockLines(input.body, { width: CW - 60, height: BODY_H - 48, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
+  // Open-house date/time strip (optional): a dedicated "OPEN HOUSE" row rendered
+  // INSIDE the body card above the copy. Its replicated height is subtracted from
+  // the body fit box so nothing overlaps. Absent -> zero height and no extra
+  // children, so the layout is byte-identical to before.
+  const ohLine = input.openHouseDateTime?.trim() || "";
+  const ohFit = ohLine
+    ? fitBlockLines(ohLine, { width: CW - 60, height: 2 * 30 * 1.15, fontBuf: fb(input, DISPLAY, 700), size: 30, ls: 0, lineHeight: 1.15, minSize: 20, maxSize: 34 })
+    : null;
+  const ohBlockH = ohFit ? 24 + 4 + ohFit.lines.length * ohFit.size * 1.15 + 12 + 2 + 12 : 0;
+  const bodyFit = fitBlockLines(input.body, { width: CW - 60, height: BODY_H - 48 - ohBlockH, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
   const FOOTER = 1462;
   // Disclosure + EHO strip (task 834b0e71): directly below the agent band (FL
   // adjacency), sized off the replicated band height so 2-line names clear it.
@@ -857,7 +866,16 @@ function flyerHero(input: RenderTemplateInput) {
     h("div", { key: "ad", style: { position: "absolute", top: 960, left: X, width: CW, color: C.ink, fontFamily: DISPLAY, fontSize: addr.size, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.14 } }, addr.lines.join("\n")),
     h("div", { key: "ru", style: { position: "absolute", top: 1098, left: X, width: 260, height: 3, backgroundColor: ruleAccent } }),
     h("div", { key: "bc", style: { position: "absolute", top: BODY_TOP, left: X, width: CW, height: BODY_H, padding: "24px 30px", backgroundColor: C.panel, border: `1px solid ${C.hairline}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(23,48,36,0.10)", display: "flex", flexDirection: "column" } },
-      h("div", { style: { width: "100%", color: C.inkSoft, fontFamily: SANS, fontSize: bodyFit.size, lineHeight: 1.5, whiteSpace: "pre-wrap" } }, bodyFit.lines.join("\n")),
+      [
+        ...(ohFit ? [
+          h("div", { key: "oh", style: { display: "flex", flexDirection: "column", marginBottom: 12 } }, [
+            h("div", { key: "oh-e", style: { color: C.gold2, fontFamily: COND, fontSize: 20, letterSpacing: 3, lineHeight: 1.2 } }, "OPEN HOUSE"),
+            h("div", { key: "oh-d", style: { color: C.ink, fontFamily: DISPLAY, fontSize: ohFit.size, fontWeight: 700, lineHeight: 1.15, marginTop: 4 } }, ohFit.lines.join("\n")),
+            h("div", { key: "oh-r", style: { width: "100%", height: 2, backgroundColor: C.hairline, marginTop: 12 } }),
+          ]),
+        ] : []),
+        h("div", { style: { width: "100%", color: C.inkSoft, fontFamily: SANS, fontSize: bodyFit.size, lineHeight: 1.5, whiteSpace: "pre-wrap" } }, bodyFit.lines.join("\n")),
+      ],
     ),
     h("div", { key: "dv", style: { position: "absolute", top: FOOTER - 10, left: X, width: CW, height: 2, backgroundColor: accent } }),
     AgentBand({ agent, phone: input.agentPhone, x: X, top: FOOTER + 16, w: CW, nameFont: fb(input, DISPLAY, 700) }),
@@ -895,7 +913,15 @@ function flyerClassic(input: RenderTemplateInput) {
   const BODY_TOP = grid ? gridTop + gridH + 20 : 800;
   const BODY_H = 1450 - BODY_TOP - 30;
   const bodyText = rest || input.body;
-  const bodyFit = fitBlockLines(bodyText, { width: CW - 60, height: BODY_H - 48, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
+  // Open-house date/time strip (optional) — same contract as flyerHero: the
+  // strip's replicated height is subtracted from the body fit box; absent ->
+  // zero height, no extra children, byte-identical layout.
+  const ohLine = input.openHouseDateTime?.trim() || "";
+  const ohFit = ohLine
+    ? fitBlockLines(ohLine, { width: CW - 60, height: 2 * 30 * 1.15, fontBuf: fb(input, DISPLAY, 700), size: 30, ls: 0, lineHeight: 1.15, minSize: 20, maxSize: 34 })
+    : null;
+  const ohBlockH = ohFit ? 24 + 4 + ohFit.lines.length * ohFit.size * 1.15 + 12 + 2 + 12 : 0;
+  const bodyFit = fitBlockLines(bodyText, { width: CW - 60, height: BODY_H - 48 - ohBlockH, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
   const FOOTER = 1462;
   // Disclosure + EHO strip (task 834b0e71): sits directly below the agent band
   // (the contact block — FL 61J2-10.025(3)(a) adjacency) in the unused footer
@@ -926,7 +952,16 @@ function flyerClassic(input: RenderTemplateInput) {
       }),
     ) : null,
     h("div", { key: "bc", style: { position: "absolute", top: BODY_TOP, left: X, width: CW, height: BODY_H, padding: "24px 30px", backgroundColor: C.panel, border: `1px solid ${C.hairline}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(23,48,36,0.10)", display: "flex", flexDirection: "column" } },
-      h("div", { style: { width: "100%", color: C.inkSoft, fontFamily: SANS, fontSize: bodyFit.size, lineHeight: 1.5, whiteSpace: "pre-wrap" } }, bodyFit.lines.join("\n")),
+      [
+        ...(ohFit ? [
+          h("div", { key: "oh", style: { display: "flex", flexDirection: "column", marginBottom: 12 } }, [
+            h("div", { key: "oh-e", style: { color: C.gold2, fontFamily: COND, fontSize: 20, letterSpacing: 3, lineHeight: 1.2 } }, "OPEN HOUSE"),
+            h("div", { key: "oh-d", style: { color: C.ink, fontFamily: DISPLAY, fontSize: ohFit.size, fontWeight: 700, lineHeight: 1.15, marginTop: 4 } }, ohFit.lines.join("\n")),
+            h("div", { key: "oh-r", style: { width: "100%", height: 2, backgroundColor: C.hairline, marginTop: 12 } }),
+          ]),
+        ] : []),
+        h("div", { style: { width: "100%", color: C.inkSoft, fontFamily: SANS, fontSize: bodyFit.size, lineHeight: 1.5, whiteSpace: "pre-wrap" } }, bodyFit.lines.join("\n")),
+      ],
     ),
     h("div", { key: "dv", style: { position: "absolute", top: FOOTER - 10, left: X, width: CW, height: 2, backgroundColor: accent } }),
     AgentBand({ agent, phone: input.agentPhone, x: X, top: FOOTER + 16, w: CW, nameFont: fb(input, DISPLAY, 700) }),
