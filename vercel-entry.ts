@@ -25,7 +25,8 @@ import { disclosureWarnings } from "./src/lib/advertising-rules";
 import { resolveRenderSuggestion } from "./src/lib/render-suggestions";
 import { captureDemoLead, validateDemoLead } from "./src/lib/leads";
 import { sendTransactionalEmail } from "./src/lib/email";
-import { deleteProperty, getPropertyWithContent, getUsageSummary, listProperties, upsertPropertyWithContent } from "./src/lib/properties";
+import { countListingsThisMonth, deleteProperty, getPropertyWithContent, getUsageSummary, listProperties, upsertPropertyWithContent } from "./src/lib/properties";
+import { quotaRefusalFor, refusalFor, resolveEntitlement, type EntitlementRefusal } from "./src/lib/entitlement";
 import { createTemplate, deleteTemplate, getTemplate, listTemplates, updateTemplate, validateTemplatePayload } from "./src/lib/templates";
 import { createDesignTemplate, deleteDesignTemplate, getDesignTemplate, listDesignTemplates, updateDesignTemplate, validateDesignTemplatePayload } from "./src/lib/design-templates";
 import { renderDesignDoc, analyzeDesignTextFit } from "./src/lib/render-design";
@@ -364,7 +365,7 @@ export default async function vercelHandler(
       const user = await authenticate(req);
       if (!user) { sendJson(res, 401, { success: false, error: "Authentication required. Please log in." }); return; }
       try {
-        const usage = await getUsageSummary(user.subscription_tier, user.id);
+        const usage = await getUsageSummary(user, user.id);
         sendJson(res, 200, { success: true, usage });
       } catch (error) {
         console.error("[team-site] /api/usage error:", error);
@@ -603,6 +604,25 @@ export default async function vercelHandler(
         return;
       }
 
+      // Entitlement gate — BEFORE any validation, usage or OpenAI call, so a
+      // refused account pays nothing (trial ended, trial limit reached, no
+      // plan, or an inactive Stripe subscription).
+      const ent = resolveEntitlement(user);
+      let refusal: EntitlementRefusal | null = refusalFor(ent);
+      if (!refusal && (ent.kind === "trial" || ent.kind === "plan")) {
+        const used = await countListingsThisMonth(user.id);
+        refusal = quotaRefusalFor(ent, used);
+      }
+      if (refusal) {
+        sendJson(res, 402, {
+          success: false,
+          error: refusal.message,
+          code: refusal.code,
+          upgrade: refusal.upgrade,
+        });
+        return;
+      }
+
       try {
         const body = await readJson(req);
         const { contentType, details } = body as {
@@ -751,6 +771,20 @@ export default async function vercelHandler(
       const user = await authenticate(req);
       if (!user) {
         sendJson(res, 401, { error: "Authentication required. Please log in." });
+        return;
+      }
+
+      // Entitlement gate (no listing-quota check: image limits per tier are an
+      // owner decision not yet made — but a trial-ended / no-plan / inactive
+      // account must not burn per-image cost either).
+      const imageRefusal: EntitlementRefusal | null = refusalFor(resolveEntitlement(user));
+      if (imageRefusal) {
+        sendJson(res, 402, {
+          success: false,
+          error: imageRefusal.message,
+          code: imageRefusal.code,
+          upgrade: imageRefusal.upgrade,
+        });
         return;
       }
 
