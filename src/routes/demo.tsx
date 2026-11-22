@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { RelevateMark } from "~/components";
+import { RelevateMark, ComplianceScopeLine } from "~/components";
 import { trackEvent } from "~/lib/analytics";
 
 export const Route = createFileRoute("/demo")({
@@ -137,6 +137,7 @@ function DemoPage() {
             </>
           )}
         </div>
+        <ComplianceScopeLine className="mt-6 text-center" />
       </main>
     </div>
   );

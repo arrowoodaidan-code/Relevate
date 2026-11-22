@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { RelevateMark } from "~/components";
+import { RelevateMark, ComplianceScopeLine } from "~/components";
+import { isStateInProductScope } from "~/lib/advertising-rules";
 import {
   BrandedTemplateSelector,
   buildStructuredData,
@@ -18,11 +19,12 @@ import { DesignCanvasEditor } from "~/components/DesignCanvasEditor";
 import { createBlankDesign, DESIGN_PRESETS, type DesignDoc, type DesignPresetId } from "~/lib/design";
 import { NativeInlineEditor, type NativeEditorValue } from "~/components/NativeInlineEditor";
 
-// US states for the disclosure jurisdiction selector (task 834b0e71). The full
-// list is offered; state-specific DISCLOSURE behaviour exists only for the
-// VERIFIED jurisdictions (FL, CA) — every other selection simply supplies the
-// fields without claiming any requirement (other-states-candidate, unverified).
-const US_STATES: [string, string][] = [
+// Disclosure jurisdiction selector. Compliance scope is federal law plus
+// South Carolina only (owner directive); South Carolina is the only state an
+// agent can select. The full list is kept and filtered through
+// isStateInProductScope so it cannot drift from PRODUCT_SCOPE_STATES again —
+// every non-SC entry is filtered out at module load.
+const US_STATES_ALL: [string, string][] = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
   ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"], ["FL", "Florida"],
   ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"], ["IL", "Illinois"], ["IN", "Indiana"],
@@ -35,6 +37,12 @@ const US_STATES: [string, string][] = [
   ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"],
   ["WY", "Wyoming"],
 ];
+
+// Scope gate: only states inside PRODUCT_SCOPE_STATES survive (South Carolina
+// today). Typed separately so the filter keeps the [string, string] tuple shape.
+const US_STATES: [string, string][] = US_STATES_ALL.filter(([code]) =>
+  isStateInProductScope(code),
+);
 
 // --- Saved properties history (owner-requested app updates) ---
 interface SavedProperty {
@@ -416,7 +424,12 @@ function AppDashboard() {
   const [brokerName, setBrokerName] = useState("");
   const [brokerLicense, setBrokerLicense] = useState("");
   const [jurisdiction, setJurisdiction] = useState("");
-  const [narMember, setNarMember] = useState(false);
+  // Guard: if jurisdiction holds a value no longer in US_STATES (e.g. a stale
+  // in-session value from before the scope narrowed to SC), reset to "Not set"
+  // so a phantom out-of-scope selection can never display.
+  useEffect(() => {
+    if (jurisdiction && !US_STATES.some(([code]) => code === jurisdiction)) setJurisdiction("");
+  }, [jurisdiction]);
   const [ehoFooter, setEhoFooter] = useState(true);
   // EHO house mark: OFF by default - it is a recommended industry convention,
   // never required by law, so the agent opts in (pass 3 resolved the asset's
@@ -845,7 +858,6 @@ function AppDashboard() {
         ...(agentLicense.trim() ? { agentLicense: agentLicense.trim() } : {}),
         ...(brokerName.trim() ? { brokerName: brokerName.trim() } : {}),
         ...(brokerLicense.trim() ? { brokerLicense: brokerLicense.trim() } : {}),
-        ...(narMember ? { narMember: true } : {}),
         ...(ehoFooter ? {} : { ehoFooter: false }),
         ...(ehoMark ? { ehoMark: true } : {}),
       };
@@ -960,7 +972,7 @@ function AppDashboard() {
   // callback kept a stale closure (a photo uploaded after the last details edit
   // was invisible to the renderer) — part of the owner-reported flyer-photo
   // defect. openHouseDate/openHouseTime live on `details`, already a dep.
-  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, narMember, ehoFooter, ehoMark, generatedImage, templateDescription, suggestionStyle, brandedTemplate, propertyPhotos]);
+  }, [generatedContent, isRendering, contentType, details, agentName, agentPhone, agentBrokerage, agentLicense, brokerName, brokerLicense, jurisdiction, ehoFooter, ehoMark, generatedImage, templateDescription, suggestionStyle, brandedTemplate, propertyPhotos]);
 
 
   // In-place editing of the native rendered flyer/social (NativeInlineEditor).
@@ -1611,16 +1623,6 @@ function AppDashboard() {
                         </option>
                       ))}
                     </select>
-                    {jurisdiction === "FL" && (
-                      <p className="mt-1 text-xs text-amber-300/70">
-                        Florida: the licensed brokerage firm name is required in advertising (Fla. Admin. Code 61J2-10.025) — make sure Brokerage / Company above is filled in.
-                      </p>
-                    )}
-                    {jurisdiction === "CA" && (
-                      <p className="mt-1 text-xs text-sky-300/70">
-                        California: agent name, DRE licence number and responsible broker identity are rendered when supplied (B&amp;P Code §10140.6). Confirm applicability with your responsible broker.
-                      </p>
-                    )}
                     {jurisdiction === "SC" && (
                       <p className="mt-1 text-xs text-amber-300/70">
                         South Carolina: every advertisement must identify the full name of your brokerage firm (S.C. Code §40-57-135(E)(2)) — make sure Brokerage / Company above is filled in. SC requires no licence number or phone number on the asset; the Equal Housing Opportunity footer is a recommended convention.
@@ -1663,10 +1665,6 @@ function AppDashboard() {
                     </div>
                     <div className="flex flex-col justify-end gap-2 pb-1">
                       <label className="flex items-center gap-2 text-xs text-emerald-200/70">
-                        <input type="checkbox" checked={narMember} onChange={(e) => setNarMember(e.target.checked)} className="accent-emerald-500" />
-                        I am an NAR member — render REALTOR® after my name
-                      </label>
-                      <label className="flex items-center gap-2 text-xs text-emerald-200/70">
                         <input type="checkbox" checked={ehoFooter} onChange={(e) => setEhoFooter(e.target.checked)} className="accent-emerald-500" />
                         Equal Housing Opportunity footer (recommended)
                       </label>
@@ -1677,7 +1675,7 @@ function AppDashboard() {
                     </div>
                   </div>
                   <p className="text-xs text-emerald-300/40">
-                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office). Texas: your name and your broker's name must appear on the asset (22 TAC §535.155) — the broker's name automatically renders at least half the size of your largest contact info, and Texas does not require a licence number on agent advertising.
+                    Licence and brokerage details appear in the small disclosure strip on rendered flyers and social posts — only fields you fill in are rendered, nothing is invented. The Equal Housing Opportunity footer is a RECOMMENDED industry convention, not a legal requirement (the federal requirement is the 11×14 fair-housing poster displayed at your office).
                   </p>
                   <div>
                     <label className="block text-sm font-medium text-emerald-200/80">
@@ -2255,6 +2253,7 @@ function AppDashboard() {
             </div>
           </div>
         </div>
+        <ComplianceScopeLine className="mt-8" />
       </main>
     </div>
   );

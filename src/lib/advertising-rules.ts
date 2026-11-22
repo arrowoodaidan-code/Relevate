@@ -826,20 +826,15 @@ export function buildChecklist(rules: AdvertisingRule[], format: DesignSurfaceKi
 /* Display copy derived from the data                                  */
 /* ------------------------------------------------------------------ */
 
-/** Human labels for the researcher's jurisdiction vocabulary. */
+/** Human labels for the researcher's jurisdiction vocabulary. Product scope is
+ * federal + South Carolina only (owner directive), so only those two labels
+ * exist: every other entry (nar, mls, platform:*, state:ca/fl/tx/ny,
+ * state:all-other) was unreachable-by-design and has been removed — re-add a
+ * label only if PRODUCT_SCOPE_STATES itself ever grows. Out-of-scope values
+ * fall back to the raw jurisdiction string via jurisdictionLabel(). */
 const JURISDICTION_LABELS: Record<string, string> = {
   federal: "Federal",
-  nar: "NAR (membership marks)",
-  mls: "MLS (market-local, not verified)",
-  product: "Product policy",
-  "platform:meta": "Meta platform policy",
-  "platform:google": "Google Ads policy",
-  "state:ca": "California",
-  "state:fl": "Florida",
-  "state:tx": "Texas",
   "state:sc": "South Carolina",
-  "state:ny": "New York (not verified)",
-  "state:all-other": "All states other than CA, FL, TX and SC (not verified)",
 };
 
 export function jurisdictionLabel(jurisdiction: string): string {
@@ -983,7 +978,6 @@ export const REALTOR_MARK = "REALTOR\u00AE";
  * scripts/verify-sc-disclosure.ts. Product scope is federal + SC only (owner
  * directive): other states' rules carry hidden-2026-09 in the data and their
  * state-code rendering is gated off by PRODUCT_SCOPE_STATES below. */
-export const VERIFIED_JURISDICTIONS = ["FL", "CA", "TX", "SC"] as const;
 
 /* ------------------------------------------------------------------ */
 /* PRODUCT SCOPE (owner directive 2026-09-23 + researcher v2.0.0)      */
