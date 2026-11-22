@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ADVERTISING_RULES,
   ADVERTISING_RULES_META,
   COMPLIANCE_PANEL_DISCLAIMERS,
   FORMAT_LABEL,
@@ -124,7 +123,7 @@ export function ComplianceChecklistPanel({ format, className }: Props) {
             </span>
           </h3>
           <p className="mt-0.5 text-[11px] text-emerald-300/60" data-compliance-meta>
-            {shownCount} of {ADVERTISING_RULES.length} researched rules apply to this{" "}
+            {shownCount} of {PRODUCT_ADVERTISING_RULES.length} researched rules apply to this{" "}
             {FORMAT_LABEL[format]} · scope: {PRODUCT_SCOPE_LABEL} · rules v{ADVERTISING_RULES_META.version} · researched{" "}
             {ADVERTISING_RULES_META.generated} · {tickedCount} ticked by you
             {SC_RULES_COUNT === 0

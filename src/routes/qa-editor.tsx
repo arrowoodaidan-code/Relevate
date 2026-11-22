@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TemplateInlineEditor, ADDED_PREFIX } from "~/components/TemplateInlineEditor";
+import { ComplianceScopeLine } from "~/components";
 import type { TemplateRegion } from "~/lib/prompts";
 import {
   assertImageFillsContainer,
@@ -699,6 +700,7 @@ function QaEditorHarness() {
           Fixture not loaded yet — {loadMessage || "loading…"}
         </p>
       )}
+      <ComplianceScopeLine className="mt-8" />
     </div>
   );
 }
