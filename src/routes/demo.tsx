@@ -130,7 +130,7 @@ function DemoPage() {
                   {status === "busy" ? "Sending…" : "Request a Demo"}
                 </button>
                 <p className="text-[11px] leading-relaxed text-emerald-400/40">
-                  Prefer to start now? <Link to="/signup" className="text-emerald-300/80 underline">Create a free account</Link>{" "}
+                  Prefer to start now? <Link to="/signup" className="text-emerald-300/80 underline">Start a free trial</Link>{" "}
                   and explore Relevate on your own.
                 </p>
               </form>

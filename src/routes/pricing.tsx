@@ -316,7 +316,7 @@ function PricingPage() {
             {STARTER_MONTHLY.period}, billed monthly through Stripe until you cancel. Not
             ready to subscribe?{" "}
             <a href="/signup" className="underline hover:text-emerald-100">
-              Create a free account
+              Start a free trial
             </a>{" "}
             or{" "}
             <a href="/demo" className="underline hover:text-emerald-100">
