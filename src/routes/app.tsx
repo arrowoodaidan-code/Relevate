@@ -12,6 +12,7 @@ import {
   type BrandedTemplateId,
 } from "~/components/designed-output";
 import { trackEvent } from "~/lib/analytics";
+import { readApiResponse } from "~/lib/api-response";
 import { ListingPhotoFill } from "~/components/ListingPhotoFill";
 import { SuggestionBox } from "~/components/SuggestionBox";
 import type { ListingAnalysis } from "~/lib/listing-analysis";
@@ -359,13 +360,13 @@ function AppDashboard() {
     setSavedPanelMsg(null);
     try {
       const res = await fetch(`/api/properties/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
-      const data = await res.json();
-      if (data.success) {
+      const r = await readApiResponse(res);
+      if (r.ok && r.data?.success) {
         setSavedProps((prev) => prev.filter((p) => p.id !== id));
         setSavedPanelMsg("Property deleted.");
         setTimeout(() => setSavedPanelMsg(null), 2500);
       } else {
-        setSavedPanelMsg(data.error || "Failed to delete property.");
+        setSavedPanelMsg((r.ok && r.data?.error) || r.message || "Failed to delete property.");
       }
     } catch {
       setSavedPanelMsg("Failed to delete property.");
@@ -518,13 +519,13 @@ function AppDashboard() {
         credentials: "include",
         body: JSON.stringify({ name, design: designDoc }),
       });
-      const data = await res.json();
-      if (data.success) {
+      const r = await readApiResponse(res);
+      if (r.ok && r.data?.success) {
         setDesignTemplateMsg(`Saved “${name}”.`);
         setDesignTemplateName("");
         await loadSavedDesigns();
       } else {
-        setDesignTemplateMsg(data.error || "Failed to save template.");
+        setDesignTemplateMsg((r.ok && r.data?.error) || r.message || "Failed to save template.");
       }
     } catch {
       setDesignTemplateMsg("Failed to save template.");
@@ -535,9 +536,9 @@ function AppDashboard() {
   const handleOpenDesignTemplate = async (id: string) => {
     try {
       const res = await fetch(`/api/design-templates/${id}`, { credentials: "include" });
-      const data = await res.json();
-      if (data.success && data.template) {
-        const doc = data.template.design as DesignDoc;
+      const r = await readApiResponse(res);
+      if (r.ok && r.data?.success && r.data?.template) {
+        const doc = r.data.template.design as DesignDoc;
         setDesignDoc(doc);
         const p = DESIGN_PRESETS;
         setDesignPreset(
@@ -546,9 +547,9 @@ function AppDashboard() {
             : "socialPortrait",
         );
         setDesignEditorOpen(true);
-        setDesignTemplateMsg(`Opened “${data.template.name}” for editing.`);
+        setDesignTemplateMsg(`Opened “${r.data?.template?.name}” for editing.`);
       } else {
-        setDesignTemplateMsg(data.error || "Could not open template.");
+        setDesignTemplateMsg((r.ok && r.data?.error) || r.message || "Could not open template.");
       }
     } catch {
       setDesignTemplateMsg("Could not open template.");
@@ -577,12 +578,12 @@ function AppDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ doc: designDoc }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setDesignRenderError(data.error || "Failed to render design. Please try again.");
+      const r = await readApiResponse(res);
+      if (!r.ok || !r.data?.success) {
+        setDesignRenderError((r.ok && r.data?.error) || r.message || "Failed to render design. Please try again.");
         return;
       }
-      setDesignRenderedImage(data.imageDataUrl as string);
+      setDesignRenderedImage(r.data.imageDataUrl as string);
     } catch {
       setDesignRenderError("Failed to render design. Please try again.");
     } finally {
@@ -657,25 +658,32 @@ function AppDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contentType: apiContentType, details: apiDetails }),
       });
-      const data = await res.json();
-      if (data.success && data.data?.content) {
-        setGeneratedContent(data.data.content);
-        setFairHousingWarning(data.data.fairHousing ?? null);
+      // Defensive read (src/lib/api-response.ts): a plain-text 503 from a cold
+      // host used to make res.json() throw and its SyntaxError message become
+      // the genError copy. r.message is always human copy; r.data still carries
+      // the parsed envelope on a failure, so the 402 trial-ended upgrade
+      // prompt below is untouched.
+      const r = await readApiResponse(res);
+      if (r.ok && r.data?.success && r.data?.data?.content) {
+        setGeneratedContent(r.data.data.content);
+        setFairHousingWarning(r.data.data.fairHousing ?? null);
         trackEvent("content_generated", { content_type: contentType });
         // Refresh usage + saved-properties grid (server upserts history on every generate).
         void refreshUsage();
         void loadSavedProperties();
       } else {
-        setGenError(data.error || "No content was generated. Please try again with more property details.");
+        setGenError((r.ok && r.data?.error) || r.message || "No content was generated. Please try again with more property details.");
         setGenUpgrade(
-          data.upgrade && typeof data.upgrade.url === "string"
-            ? { url: data.upgrade.url, label: data.upgrade.label || "Upgrade" }
+          r.data?.upgrade && typeof r.data.upgrade.url === "string"
+            ? { url: r.data.upgrade.url, label: r.data.upgrade.label || "Upgrade" }
             : null,
         );
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
-      setGenError(`Generation failed: ${message}. Please try again.`);
+    } catch {
+      // Body parsing is defensive now, so this catch only sees a genuine
+      // network failure — never a JSON.parse/SyntaxError. Keep the copy
+      // plain-language; no exception text is interpolated.
+      setGenError("We couldn't reach the service just then. Please try again — the server may still be warming up.");
     } finally {
       setIsGenerating(false);
     }
@@ -685,11 +693,11 @@ function AppDashboard() {
     setSavedPanelMsg(null);
     try {
       const res = await fetch(`/api/properties/${encodeURIComponent(id)}`, { credentials: "include" });
-      const data = await res.json();
-      if (data.success && data.property) {
-        const prop = data.property as SavedPropertyDetail;
+      const r = await readApiResponse(res);
+      if (r.ok && r.data?.success && r.data?.property) {
+        const prop = r.data.property as SavedPropertyDetail;
         applySavedDetailsToForm(prop.details, setDetails);
-        const contents = (data.contents ?? []) as SavedContentRow[];
+        const contents = (r.data.contents ?? []) as SavedContentRow[];
         if (contents.length > 0) {
           setGeneratedContent(contents[0].content);
           const apiType = contents[0].content_type;
@@ -702,7 +710,7 @@ function AppDashboard() {
         setSavedPanelMsg(`Loaded "${prop.address}".`);
         setTimeout(() => setSavedPanelMsg(null), 2500);
       } else {
-        setSavedPanelMsg(data.error || "Failed to load property.");
+        setSavedPanelMsg((r.ok && r.data?.error) || r.message || "Failed to load property.");
       }
     } catch {
       setSavedPanelMsg("Failed to load property.");
@@ -757,17 +765,18 @@ function AppDashboard() {
           instruction,
         }),
       });
-      const data = await res.json();
-      if (data.success && data.content) {
-        setGeneratedContent(data.content);
+      const r = await readApiResponse(res);
+      if (r.ok && r.data?.success && r.data?.content) {
+        setGeneratedContent(r.data.content);
         setRefineInstruction("");
         trackEvent("content_refined", { content_type: contentType });
       } else {
-        setRefineError(data.error || "Failed to refine content. Please try again.");
+        setRefineError((r.ok && r.data?.error) || r.message || "Failed to refine content. Please try again.");
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
-      setRefineError(`Refinement failed: ${message}. Please try again.`);
+    } catch {
+      // Same rule as generate: parsing can no longer throw here, so no
+      // exception text is ever interpolated into the error copy.
+      setRefineError("We couldn't reach the service just then. Please try again in a moment.");
     } finally {
       setIsRefining(false);
     }

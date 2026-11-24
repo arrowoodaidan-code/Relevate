@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { RelevateMark, ComplianceScopeLine } from "~/components";
+import { readApiResponse } from "~/lib/api-response";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -29,14 +30,21 @@ function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.error || "Login failed");
+      // Defensive read: a plain-text 503 from a cold host must surface as a
+      // warm-up message, never as a JSON.parse error (see src/lib/api-response.ts).
+      const r = await readApiResponse(res);
+      if (!r.ok) {
+        setError(r.message);
+        return;
+      }
+      if (!r.data?.success) {
+        setError(r.data?.error || "Login failed");
         return;
       }
       navigate({ to: "/app" });
-    } catch (err: any) {
-      setError(err.message || "Network error. Please try again.");
+    } catch {
+      // Only a genuine network failure lands here; keep the copy plain.
+      setError("We couldn't reach the server. Please try again in a moment.");
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RelevateMark, ComplianceScopeLine } from "~/components";
 import { trackEvent } from "~/lib/analytics";
+import { readApiResponse } from "~/lib/api-response";
 
 export const Route = createFileRoute("/demo")({
   component: DemoPage,
@@ -28,9 +29,16 @@ function DemoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, brokerage, source: "schedule-a-demo" }),
       });
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.error || "Something went wrong. Please try again.");
+      // Defensive read: a plain-text 503 from a cold host must surface as a
+      // warm-up message, never as a JSON.parse error (see src/lib/api-response.ts).
+      const r = await readApiResponse(res);
+      if (!r.ok) {
+        setError(r.message);
+        setStatus("error");
+        return;
+      }
+      if (!r.data?.success) {
+        setError(r.data?.error || "Something went wrong. Please try again.");
         setStatus("error");
         return;
       }
