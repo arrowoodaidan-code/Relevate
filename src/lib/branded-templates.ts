@@ -853,7 +853,12 @@ function flyerHero(input: RenderTemplateInput) {
   // Variant B ("balanced"): keep the 690px photo and let the body card fill the
   // reclaimed height with slightly larger type, so the page fills evenly to the
   // bottom margin instead of ending in a void.
-  const balanced = input.flyerDensity === "balanced";
+  // Lead decision 2026-11-24: the owner asked for "compressed and cleaner" and
+  // did not pick between the two variants; variant B ("balanced") is the one
+  // recommended back to them, so it is the shipped default. Passing
+  // flyerDensity: "tight" still gets variant A exactly as rendered in
+  // /home/team/shared/qa-diagnostic-2026-11-22/flyer-variant-a.png.
+  const balanced = input.flyerDensity !== "tight";
   const PHOTO_H_BASE = 690;
   // Cap high enough that even a one-line body keeps the card bottom on
   // CARD_BOTTOM, so the footer band is identical for every body length.
