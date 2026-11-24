@@ -52,6 +52,10 @@ const C = {
   muted: "#86b89e",
   gold: "#b98a3e",
   gold2: "#9c742f",
+  // Deep bronze: the only gold that clears 4.5:1 on the cream page. C.gold at
+  // the watermark's old 0.4 opacity measured 1.42:1 — a barely visible smudge
+  // (owner defect 2026-11-22). Measured from pixels at full opacity: 6.25:1.
+  goldDeep: "#6b4f1f",
   eyebrow: "#7fc9a4",
   panel: "#ffffff",
   hairline: "rgba(23,48,36,0.14)",
@@ -560,7 +564,7 @@ function FactChip({ num, label, fontSize = 42, dark = true, accent = C.gold2, nu
     h("div", { key: "l", style: { marginTop: 4, color: labelColor, fontFamily: SANS, fontSize: 15, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" } }, label),
   ]);
 }
-function AgentBand({ agent, phone, x, top, w, nameFont, nameColor = C.ink, phoneColor = C.gold, markColor = C.gold, markOpacity = 0.4, maxLines = 2 }: { agent: string; phone?: string; x: number; top: number; w: number; nameFont?: ArrayBuffer; nameColor?: string; phoneColor?: string; markColor?: string; markOpacity?: number; maxLines?: number }) {
+function AgentBand({ agent, phone, x, top, w, nameFont, nameColor = C.ink, phoneColor = C.gold, markColor = C.gold, markOpacity = 0.4, markSize = 15, maxLines = 2 }: { agent: string; phone?: string; x: number; top: number; w: number; nameFont?: ArrayBuffer; nameColor?: string; phoneColor?: string; markColor?: string; markOpacity?: number; markSize?: number; maxLines?: number }) {
   // BUGFIX (Aug 23): agent name was fixed at 48px with no width cap, so a long
   // name bled past the band width into the RELEVATE mark (right:0) and the
   // canvas edge. Fit-box it: leave a right margin for the mark (~120px) and the
@@ -584,7 +588,7 @@ function AgentBand({ agent, phone, x, top, w, nameFont, nameColor = C.ink, phone
     // almost unseen") — tiny, translucent, right-aligned in the band. The
     // defaults keep that look; social-photo passes opacity 1 on its footer
     // plate, where 0.4 measured 1.92:1 (illegible).
-    h("div", { key: "w", style: { position: "absolute", right: 0, color: markColor, opacity: markOpacity, fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: 3 } }, "RELEVATE"),
+    h("div", { key: "w", style: { position: "absolute", right: 0, color: markColor, opacity: markOpacity, fontFamily: DISPLAY, fontSize: markSize, fontWeight: 700, letterSpacing: 3 } }, "RELEVATE"),
   ]);
 }
 
@@ -827,16 +831,100 @@ function flyerHero(input: RenderTemplateInput) {
     { num: facts.baths, label: "Baths" },
     { num: facts.sqft, label: "Sq Ft" },
   ].filter((f) => f.num);
-  const PHOTO_TOP = 210, PHOTO_H = 690, PHOTO_BOT = PHOTO_TOP + PHOTO_H;
+  const PHOTO_TOP = 210;
+  // --- VERTICAL RHYTHM (owner, 2026-11-22: "have everything compressed and look
+  // cleaner"). The reference render measured 71px of empty page between the hero
+  // photo and the title, 84px between the title and the gold rule, and 38px
+  // between the rule and the agent band — 344 blank rows, 21% of the page, and
+  // the page read as loose because the type floated in the middle of it.
+  // Every band below is now DERIVED from the type that sits in it (the address
+  // box height is measured from the fitted lines), so a 1-line and a 2-line
+  // address keep the same rhythm, and the hero photo takes the reclaimed height
+  // rather than the page. The footer stack (divider / agent / EHO) stays
+  // anchored to the bottom, so the bottom margin is unchanged.
+  const TITLE_GAP = 13;        // band 1: photo bottom -> address box (was 60)
+  const RULE_GAP = 22;         // band 2: address box bottom -> gold rule (was 84)
+  const RULE_TO_CARD = 24;     // band 3: gold rule -> body card (was 25)
+  // The card bottom stays on the reference's 1410: the R5 gate requires the
+  // bottom band (y>=1450) to be pixel-identical across body lengths, and the
+  // card's drop shadow reaches ~25px below it.
+  const CARD_TO_DIVIDER = 52;  // body card bottom -> divider (was 42)
+  const DIVIDER_TOP = 1462;    // divider sits on the footer anchor (was 1452)
+  // Variant B ("balanced"): keep the 690px photo and let the body card fill the
+  // reclaimed height with slightly larger type, so the page fills evenly to the
+  // bottom margin instead of ending in a void.
+  // Lead decision 2026-11-24: the owner asked for "compressed and cleaner" and
+  // did not pick between the two variants; variant B ("balanced") is the one
+  // recommended back to them, so it is the shipped default. Passing
+  // flyerDensity: "tight" still gets variant A exactly as rendered in
+  // /home/team/shared/qa-diagnostic-2026-11-22/flyer-variant-a.png.
+  const balanced = input.flyerDensity !== "tight";
+  const PHOTO_H_BASE = 690;
+  // Cap high enough that even a one-line body keeps the card bottom on
+  // CARD_BOTTOM, so the footer band is identical for every body length.
+  const PHOTO_H_MAX = 900;
   // PHOTO-ADAPTIVE (task bf6f8534): sample the uploaded photo once (≤160px),
   // drive the overlay palette (price / ribbon / chips / rule) from its
   // luminance + dominant hue, and enforce WCAG floors. Falls back to the fixed
   // dark-scrim + gold design when there is no photo (classic path unchanged).
-  // Zones: photo spans y 210..900 of 1650 → fy 0.127..0.545; price sits at the
-  // photo bottom (band ~ fy 0.47..0.55), chips right of it, ribbon at top.
+  // Zones are resolved below, once PHOTO_H/PHOTO_BOT are known: photo spans the
+  // hero block, price sits at the photo bottom (band ~150px), chips right of it,
+  // ribbon at top.
+  const priceSize = input.price ? fitBlockLines(input.price, { width: CW * 0.55, height: 110, fontBuf: fb(input, COND, 400), size: 96, ls: 2, lineHeight: 1, minSize: 40, maxSize: 120 }).size : 0;
+  // Address below the photo (max 2 lines). Its fitted box height is what the
+  // rule is placed against, so band 2 is constant whatever the title length.
+  const addr = fitBlockLines(title, { width: CW, height: 2 * 54 * 1.14, fontBuf: fb(input, DISPLAY, 700), size: 54, ls: -0.5, lineHeight: 1.14, minSize: 30, maxSize: 64 });
+  const titleBoxH = Math.max(1, addr.lines.length) * addr.size * 1.14;
+  const BELOW_PHOTO = TITLE_GAP + titleBoxH + RULE_GAP + 3 + RULE_TO_CARD;
+  const CARD_BOTTOM = DIVIDER_TOP - CARD_TO_DIVIDER;
+  const BODY_PAD = balanced ? 30 : 24;
+  const BODY_MIN_H = Math.round(3 * 26 * 1.5) + BODY_PAD * 2;
+  // Open-house date/time strip (optional): a dedicated "OPEN HOUSE" row rendered
+  // INSIDE the body card above the copy. Its replicated height is subtracted from
+  // the body fit box so nothing overlaps. Absent -> zero height and no extra
+  // children, so the layout is unchanged.
+  const ohLine = input.openHouseDateTime?.trim() || "";
+  const ohSize = balanced ? 34 : 30;
+  const ohFit = ohLine
+    ? fitBlockLines(ohLine, { width: CW - 60, height: 2 * 30 * 1.15, fontBuf: fb(input, DISPLAY, 700), size: ohSize, ls: 0, lineHeight: 1.15, minSize: 20, maxSize: 34 })
+    : null;
+  const ohBlockH = ohFit ? 24 + 4 + ohFit.lines.length * ohFit.size * 1.15 + 12 + 2 + 12 : 0;
+  const fitBody = (fitH: number, size: number, maxSize: number) =>
+    fitBlockLines(input.body, { width: CW - 60, height: fitH, fontBuf: fb(input, SANS, 400), size, ls: 0, lineHeight: 1.5, minSize: 15, maxSize });
+  // The card SIZES TO ITS CONTENT (fix B): 284px is the MAX height, so long copy
+  // renders exactly as before, while a normal short blurb no longer leaves a
+  // mostly-empty white panel. This legacy box also decides the card's natural
+  // height, which is what the hero photo is sized against in variant A.
+  const bodyFitA = fitBody(284 - 24 * 2 - ohBlockH, 26, 30);
+  const naturalBodyH = Math.min(284, Math.max(165, Math.ceil(Math.max(1, bodyFitA.lines.length) * bodyFitA.size * 1.5 + ohBlockH + 48)));
+  // Variant A: the reclaimed ~110px goes to the hero photo, so the type sizes
+  // and the copy fit box are untouched.
+  const PHOTO_H = balanced
+    ? PHOTO_H_BASE
+    : Math.round(Math.min(PHOTO_H_MAX, Math.max(PHOTO_H_BASE, CARD_BOTTOM - naturalBodyH - BELOW_PHOTO - PHOTO_TOP)));
+  const PHOTO_BOT = PHOTO_TOP + PHOTO_H;
+  const TITLE_TOP = PHOTO_BOT + TITLE_GAP;
+  const RULE_TOP = Math.round(TITLE_TOP + titleBoxH + RULE_GAP);
+  const BODY_TOP = RULE_TOP + 3 + RULE_TO_CARD;
+  const cardMaxH = CARD_BOTTOM - BODY_TOP;
+  // Variant B fills the card to the divider and re-fits the copy at a larger
+  // size (30/1.5 inside a wider padding); variant A keeps the legacy fit.
+  const bodyFit = balanced ? fitBody(cardMaxH - BODY_PAD * 2 - ohBlockH, 30, 32) : bodyFitA;
+  const bodyTextH = Math.max(1, bodyFit.lines.length) * bodyFit.size * 1.5;
+  const BODY_H = balanced
+    ? cardMaxH
+    : Math.min(cardMaxH, Math.max(BODY_MIN_H, naturalBodyH));
+  const FOOTER = 1462;
+  // Disclosure + EHO strip (task 834b0e71): directly below the agent band (FL
+  // adjacency), sized off the replicated band height so 2-line names clear it.
+  const bandH = agentBandHeightPx(input, CW);
+  const stripTop = Math.min(FOOTER + 16 + bandH + 10, HGT - 44);
+  const stripH = HGT - stripTop - 8;
+  // Photo-adaptive palette, resolved against the real hero geometry so the
+  // sampled zones track the photo wherever the rhythm puts it.
   const photoAnalysis = input.imageDataUrl
     ? analyzePhoto(input.imageDataUrl, {
-        photo: { fx: 0, fy: 210 / HGT, fw: 1, fh: PHOTO_H / HGT },
+        photo: { fx: 0, fy: PHOTO_TOP / HGT, fw: 1, fh: PHOTO_H / HGT },
         price: { fx: 0, fy: (PHOTO_BOT - 150) / HGT, fw: 0.5, fh: 150 / HGT },
         chips: { fx: 0.45, fy: (PHOTO_BOT - 130) / HGT, fw: 0.5, fh: 130 / HGT },
         ribbon: { fx: 0, fy: 246 / HGT, fw: 0.35, fh: 78 / HGT },
@@ -855,39 +943,6 @@ function flyerHero(input: RenderTemplateInput) {
   const chipAccent = pricePal.flipped ? photoAnalysis!.accentHex : C.ring;
   const ruleAccent = pricePal.flipped ? photoAnalysis!.accentHex : C.gold2;
   const chipBg = pricePal.flipped ? "rgba(252,249,240,0.86)" : undefined;
-  // Price on the scrim (Bebas, fit to width).
-  const priceSize = input.price ? fitBlockLines(input.price, { width: CW * 0.55, height: 110, fontBuf: fb(input, COND, 400), size: 96, ls: 2, lineHeight: 1, minSize: 40, maxSize: 120 }).size : 0;
-  // Address below the photo (max 2 lines).
-  const addr = fitBlockLines(title, { width: CW, height: 2 * 54 * 1.14, fontBuf: fb(input, DISPLAY, 700), size: 54, ls: -0.5, lineHeight: 1.14, minSize: 30, maxSize: 64 });
-  // Body card 1126..1410 (card bottom 1410 — gate-consistent; leaves clear
-  // breathing room from the gold rule so a 2-line address never collides).
-  // The card SIZES TO ITS CONTENT (fix B): 284px is the MAX height, so long copy
-  // renders exactly as before, while a normal short blurb no longer leaves a
-  // mostly-empty white panel. Card is top-anchored — freed space falls below it.
-  const BODY_TOP = 1126;
-  const BODY_PAD = 24;
-  const BODY_MAX_H = 284;
-  const BODY_MIN_H = Math.round(3 * 26 * 1.5) + BODY_PAD * 2; // 165
-  // Open-house date/time strip (optional): a dedicated "OPEN HOUSE" row rendered
-  // INSIDE the body card above the copy. Its replicated height is subtracted from
-  // the body fit box so nothing overlaps. Absent -> zero height and no extra
-  // children, so the layout is byte-identical to before.
-  const ohLine = input.openHouseDateTime?.trim() || "";
-  const ohFit = ohLine
-    ? fitBlockLines(ohLine, { width: CW - 60, height: 2 * 30 * 1.15, fontBuf: fb(input, DISPLAY, 700), size: 30, ls: 0, lineHeight: 1.15, minSize: 20, maxSize: 34 })
-    : null;
-  const ohBlockH = ohFit ? 24 + 4 + ohFit.lines.length * ohFit.size * 1.15 + 12 + 2 + 12 : 0;
-  // Fit box UNCHANGED (BODY_MAX_H - padding) so long copy is byte-identical;
-  // only the painted card height tracks the lines that actually render.
-  const bodyFit = fitBlockLines(input.body, { width: CW - 60, height: BODY_MAX_H - BODY_PAD * 2 - ohBlockH, fontBuf: fb(input, SANS, 400), size: 26, ls: 0, lineHeight: 1.5, minSize: 15, maxSize: 30 });
-  const bodyTextH = Math.max(1, bodyFit.lines.length) * bodyFit.size * 1.5;
-  const BODY_H = Math.min(BODY_MAX_H, Math.max(BODY_MIN_H, Math.ceil(bodyTextH + ohBlockH + BODY_PAD * 2)));
-  const FOOTER = 1462;
-  // Disclosure + EHO strip (task 834b0e71): directly below the agent band (FL
-  // adjacency), sized off the replicated band height so 2-line names clear it.
-  const bandH = agentBandHeightPx(input, CW);
-  const stripTop = Math.min(FOOTER + 16 + bandH + 10, HGT - 44);
-  const stripH = HGT - stripTop - 8;
   return h("div", {
     style: { width: W, height: HGT, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", background: "linear-gradient(180deg, #fdfbf5 0%, #f3edE1 40%, #efe7d8 100%)", color: C.ink, fontFamily: SANS },
   }, [
@@ -901,11 +956,12 @@ function flyerHero(input: RenderTemplateInput) {
     factChips.length > 0 ? h("div", { key: "fc", style: { position: "absolute", top: PHOTO_BOT - 96, right: X, display: "flex", flexDirection: "row", gap: 14 } },
       factChips.map((f) => FactChip({ num: f.num, label: f.label, accent: chipAccent, bg: chipBg, numColor: chipPal.textColor, labelColor: pricePal.flipped ? "#4d5c50" : C.eyebrow })),
     ) : null,
-    // Address sits clearly below the photo; 2-line addresses fit entirely
-    // above the gold rule (rule at 1098), so address + rule never overlap.
-    h("div", { key: "ad", style: { position: "absolute", top: 960, left: X, width: CW, color: C.ink, fontFamily: DISPLAY, fontSize: addr.size, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.14 } }, addr.lines.join("\n")),
-    h("div", { key: "ru", style: { position: "absolute", top: 1098, left: X, width: 260, height: 3, backgroundColor: ruleAccent } }),
-    h("div", { key: "bc", style: { position: "absolute", top: BODY_TOP, left: X, width: CW, height: BODY_H, padding: "24px 30px", backgroundColor: C.panel, border: `1px solid ${C.hairline}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(23,48,36,0.10)", display: "flex", flexDirection: "column" } },
+    // Address sits TITLE_GAP below the photo and the gold rule sits RULE_GAP
+    // below the address box, so bands 1 and 2 are constant for a 1- or 2-line
+    // address and neither can collide with the rule.
+    h("div", { key: "ad", style: { position: "absolute", top: TITLE_TOP, left: X, width: CW, color: C.ink, fontFamily: DISPLAY, fontSize: addr.size, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.14 } }, addr.lines.join("\n")),
+    h("div", { key: "ru", style: { position: "absolute", top: RULE_TOP, left: X, width: 260, height: 3, backgroundColor: ruleAccent } }),
+    h("div", { key: "bc", style: { position: "absolute", top: BODY_TOP, left: X, width: CW, height: BODY_H, padding: `${BODY_PAD}px 30px`, backgroundColor: C.panel, border: `1px solid ${C.hairline}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(23,48,36,0.10)", display: "flex", flexDirection: "column", justifyContent: "center" } },
       [
         ...(ohFit ? [
           h("div", { key: "oh", style: { display: "flex", flexDirection: "column", marginBottom: 12 } }, [
@@ -917,9 +973,12 @@ function flyerHero(input: RenderTemplateInput) {
         h("div", { style: { width: "100%", color: C.inkSoft, fontFamily: SANS, fontSize: bodyFit.size, lineHeight: 1.5, whiteSpace: "pre-wrap" } }, bodyFit.lines.join("\n")),
       ],
     ),
-    h("div", { key: "dv", style: { position: "absolute", top: FOOTER - 10, left: X, width: CW, height: 2, backgroundColor: accent } }),
-    AgentBand({ agent, phone: input.agentPhone, x: X, top: FOOTER + 16, w: CW, nameFont: fb(input, DISPLAY, 700) }),
-    DisclosureFooter({ input, x: X, w: CW, top: stripTop, availableH: stripH, legendColor: C.inkSoft, detailColor: C.inkSoft, markSize: 30, fontSize: 15 }),
+    h("div", { key: "dv", style: { position: "absolute", top: DIVIDER_TOP, left: X, width: CW, height: 2, backgroundColor: accent } }),
+    // The RELEVATE mark used to be C.gold at 0.4 opacity on the cream page —
+    // measured ~1.4:1, i.e. barely legible (owner defect 2026-11-22). Full-opacity
+    // deep bronze clears 4.5:1 measured from pixels (see the render gate).
+    AgentBand({ agent, phone: input.agentPhone, x: X, top: FOOTER + 16, w: CW, nameFont: fb(input, DISPLAY, 700), markColor: C.goldDeep, markOpacity: 1, markSize: 17 }),
+    DisclosureFooter({ input, x: X, w: CW, top: stripTop, availableH: stripH, legendColor: C.inkSoft, detailColor: C.inkSoft, markSize: 30, fontSize: balanced ? 16 : 15 }),
   ]);
 }
 

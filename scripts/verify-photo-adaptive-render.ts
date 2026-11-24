@@ -47,13 +47,15 @@ const FIXTURES: Array<[string, [number, number, number]]> = [
 ];
 
 // Real R5 slot geometry from src/lib/branded-templates.ts:
-//  - Flyer-Hero: photo y 210..900 of 1650, price div sits at top PHOTO_BOT-108=792
-//    (left, ~110px tall), chips right at 804. Sampling the price zone over the
-//    photo: fy 0.48..0.55.
+//  - Flyer-Hero: the hero photo now absorbs the reclaimed band height (rhythm
+//    pass 2026-11-22), so the photo bottom — and the price that sits 108px
+//    above it — move with the body length (photo 210..987 for long copy,
+//    210..1105 for short). Sample the LEFT half of the hero, which is where the
+//    price always lands, instead of a fixed price row.
 //  - Social-Photo: photo fills the 1080 card; price at top 340, address at 470..565
 //    (upper overlay zone fy 0.315..0.52, centered).
 const PRICE_ZONE: Record<string, { fx: number; fy: number; fw: number; fh: number }> = {
-  flyer: { fx: 0.04, fy: 0.48, fw: 0.5, fh: 0.07 },
+  flyer: { fx: 0.03, fy: 0.16, fw: 0.45, fh: 0.55 },
   social: { fx: 0.06, fy: 0.315, fw: 0.88, fh: 0.21 },
 };
 

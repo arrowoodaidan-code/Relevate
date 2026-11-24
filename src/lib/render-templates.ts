@@ -100,6 +100,15 @@ export interface RenderTemplateInput {
    * format + photo presence (default) in brandedMarketingTemplate. */
   brandedTemplate?: BrandedTemplateId;
   /**
+   * Flyer vertical-rhythm variant (owner pick, 2026-11-22 "have everything
+   * compressed and look cleaner"). Only the flyer-hero layout reads it:
+   *  - "tight" (default, variant A) — bands pulled in and the reclaimed height
+   *    given to the hero photo; type sizes unchanged.
+   *  - "balanced" (variant B) — same bands, plus the body card fills to the
+   *    divider and its type grows a touch so the page ends evenly.
+   * Absent → "tight". */
+  flyerDensity?: "tight" | "balanced";
+  /**
    * R5 structured listing data (additive, optional — never fabricated): when a
    * value is absent the branded templates fall back to best-effort regex
    * extraction from the body, and when nothing is found the slot is omitted
