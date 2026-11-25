@@ -647,6 +647,33 @@ for (let attempt = 1; ; attempt++) {
                 );
               }
             }
+            // keyFeatures must be an array of strings — the generator slices and
+            // joins it, and a malformed payload used to crash into a 500 whose
+            // body carried the internal error message (spec §5: validate and
+            // answer 400 naming the field instead).
+            if (!Array.isArray(details.keyFeatures)) {
+              return Response.json(
+                { error: "keyFeatures is required and must be an array of strings" },
+                { status: 400 },
+              );
+            }
+            if (details.keyFeatures.some((f) => typeof f !== "string")) {
+              return Response.json(
+                { error: "keyFeatures must be an array of strings" },
+                { status: 400 },
+              );
+            }
+            // Optional agent business address (CAN-SPAM postal footer): when
+            // supplied it is used verbatim in the email opt-out footer.
+            if (
+              details.agentAddress != null &&
+              (typeof details.agentAddress !== "string" || details.agentAddress.length > 200)
+            ) {
+              return Response.json(
+                { error: "agentAddress must be a string under 200 characters" },
+                { status: 400 },
+              );
+            }
             const validContentTypes = [
               "property-description",
               "open-house-flyer",
@@ -718,11 +745,12 @@ for (let attempt = 1; ; attempt++) {
             });
           } catch (error) {
             console.error("API /api/generate error:", error);
+            // The 500 body names the failure class only — never
+            // error.message, which can carry internals to the client
+            // (spec: generated-content-truthfulness §5). The message is
+            // logged server-side above.
             return Response.json(
-              {
-                error: "Failed to generate content",
-                details: error instanceof Error ? error.message : "Unknown error",
-              },
+              { error: "Failed to generate content" },
               { status: 500 },
             );
           }
@@ -903,11 +931,9 @@ for (let attempt = 1; ; attempt++) {
             return Response.json({ success: true, content: revised, ...(refineFairHousing ? { fairHousing: refineFairHousing } : {}) });
           } catch (error) {
             console.error("API /api/refine error:", error);
+            // Same rule as /api/generate: the body carries no error.message.
             return Response.json(
-              {
-                error: "Failed to refine content",
-                details: error instanceof Error ? error.message : "Unknown error",
-              },
+              { error: "Failed to refine content" },
               { status: 500 },
             );
           }

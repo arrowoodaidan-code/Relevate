@@ -14,6 +14,13 @@ import {
   type FairHousingScanResult,
 } from "./fair-housing";
 import { stripBracketPlaceholders } from "./placeholder-guard";
+import {
+  stripUrgencySentences,
+  urgencyHits,
+  stripMarkdown,
+  ensureEmailOptOut,
+} from "./truthfulness";
+import type { FairHousingHit } from "./fair-housing";
 import { randomUUID } from "node:crypto";
 import { sql } from "../db";
 
@@ -41,6 +48,12 @@ async function saveToDatabase(
 /**
  * Generate content using mock data (fallback when no API key).
  * Returns realistic-looking sample content for each content type.
+ *
+ * Truthfulness (spec: generated-content-truthfulness §2): the mocks state ONLY
+ * what the agent supplied — address, beds/baths/sqft, price, keyFeatures,
+ * description, supplied open-house date/time and agent contact. An unsupplied
+ * detail is omitted (never invented), neighborhood/price-positioning claims
+ * are absent, and there is no urgency language anywhere.
  */
 function generateMockContent(
   contentType: ContentType,
@@ -52,7 +65,10 @@ function generateMockContent(
   const sqft = details.squareFeet.toLocaleString();
   const price = `$${details.price.toLocaleString()}`;
   const features = details.keyFeatures.slice(0, 3).join(", ");
-
+  const featureBullets = details.keyFeatures
+    .slice(0, 4)
+    .map((f) => `• ${f}`)
+    .join("\n");
   // Bracketed-placeholder rule (task fa4a26ae): the mock templates themselves
   // must not emit placeholders. Signature lines use the SUPPLIED agent
   // details when present and are OMITTED otherwise — an unsupplied detail
@@ -67,93 +83,76 @@ function generateMockContent(
     : `Best regards,`;
 
   const mocks: Record<ContentType, string> = {
-    "property-description": `Welcome to ${address} — a stunning ${beds}-bedroom, ${baths}-bathroom home offering ${sqft} square feet of thoughtfully designed living space. Priced at ${price}, this property exemplifies modern comfort and style.
+    "property-description": `Welcome to ${address} — ${beds} bedrooms, ${baths} bathrooms and ${sqft} square feet of living space, offered at ${price}.
 
-Step inside to discover an open-concept layout bathed in natural light, with premium finishes throughout. The gourmet kitchen features top-of-the-line appliances, while the spacious living areas provide the perfect setting for both entertaining and everyday living.
+The listing highlights${features ? `: ${features}.` : " speak for themselves — schedule a showing to see the home in person."}${details.description ? `\n\nFrom the listing: ${details.description}` : ""}
 
-The primary suite offers a private retreat with a spa-like ensuite bathroom and generous closet space. Additional bedrooms are well-appointed and versatile for guests, a home office, or a growing family.
+Every showing starts with a visit — reply or reach out to arrange a time that works for you.
 
-Notable features include ${features}. This home is a rare find in today's market — schedule your private showing today to experience everything it has to offer.
+About the Agent: Ready to see ${address} for yourself? Reply to schedule a private tour.`,
 
-About the Agent: Ready to make this your new home? Contact me today to schedule a private tour and see why ${address} is the perfect place for you.`,
+    "open-house-flyer": `HEADLINE: ${address} — Open for Viewings
 
-    "open-house-flyer": `HEADLINE: Your Dream Home Awaits at ${address}
-
-SUBHEADLINE: ${beds} beds • ${baths} baths • ${sqft} sq ft — Priced at ${price}
+SUBHEADLINE: ${beds} beds • ${baths} baths • ${sqft} sq ft — ${price}
 
 HIGHLIGHTS:
-• Open-concept living with abundant natural light
-• Gourmet kitchen with premium appliances and quartz countertops
-• Primary suite with spa-like ensuite bathroom
-• ${features}
-• Prime location near shopping, dining, and parks
-• Move-in ready with recent updates throughout
+${featureBullets || `• ${beds} bedrooms, ${baths} bathrooms, ${sqft} sq ft`}
+• ${price}
 
 DIRECTIONS: ${address} — see your preferred maps app for turn-by-turn directions.
 
-CONTACT: For more information or to RSVP, contact your agent today. Light refreshments will be served.`,
+CONTACT: Reply or reach out for more information or to RSVP${details.agentName?.trim() ? `, ${details.agentName.trim()}` : ""}.`,
 
     "social-media-post": `INSTAGRAM:
-📍 Just listed: ${address} 🏡✨
+📍 On the market: ${address} 🏡
 
 ${beds} beds • ${baths} baths • ${sqft} sq ft
 ${price}
 
-This stunning home features ${features} — perfect for your next chapter!
+${features ? `Listing highlights: ${features}` : "Full details at the link in bio."}
 
-📅 Schedule a private tour today — link in bio!
+📅 Reply or DM to schedule a showing.
 
 #JustListed #RealEstate #HomeForSale #DreamHome #HouseHunting
 
 FACEBOOK:
-🏡 Just listed and ready for its new owners!
+🏡 Now on the market: ${address}
 
-${address} is now available and we couldn't be more excited to share it with you. This ${beds}-bed, ${baths}-bath beauty offers ${sqft} of living space with features you'll love: ${features}.
+This ${beds}-bedroom, ${baths}-bath home offers ${sqft} of living space at ${price}.${features ? ` Listed highlights: ${features}.` : ""}
 
-Priced at ${price}, this home is a fantastic opportunity in today's market. Whether you're a first-time buyer or looking to upgrade, this property checks all the boxes.
-
-📞 Message me for a private showing or stop by our open house this weekend!
+${details.description ? `${details.description}\n\n` : ""}Message me for a private showing or with any questions.
 
 TWITTER/X:
-1. 🏡 Just listed: ${address} — ${beds} beds, ${baths} baths, ${sqft} sq ft. ${price}. ${features}. DM for details!
+1. 🏡 On the market: ${address} — ${beds} beds, ${baths} baths, ${sqft} sq ft. ${price}. ${features}. DM for details!
 
-2. New on the market! ✨ ${address} — Move-in ready with ${features}. Schedule your tour today. ${price}
+2. New listing ✨ ${address} — ${beds}BR/${baths}BA, ${sqft} sq ft. ${price}. Reply to schedule a showing.
 
-3. Hot new listing alert! 🔥 ${address} — ${beds}BR/${baths}BA, ${sqft} sq ft. Don't miss this one! ${price}`,
+3. ${address} — ${beds} beds, ${baths} baths, ${sqft} sq ft at ${price}. Message me with questions.`,
 
     "email-campaign": `SUBJECT LINE OPTIONS:
-1. 🏡 Just Listed: ${address} — ${beds} Beds, ${baths} Baths
-2. Your Dream Home at ${address} — Available Now
-3. ✨ New Listing: ${price} — ${beds} Bedroom Home in Prime Location
+1. On the market: ${address} — ${beds} Beds, ${baths} Baths
+2. ${address} — now listed at ${price}
+3. New listing: ${beds}-Bedroom Home at ${address}
 
-PREHEADER: ${beds} beds • ${baths} baths • ${sqft} sq ft — Schedule your tour today
+PREHEADER: ${beds} beds • ${baths} baths • ${sqft} sq ft — details inside
 
 EMAIL BODY:
 
 Hi there,
 
-I'm excited to share this stunning new listing — ${address} — now available at ${price}!
+${address} is now on the market at ${price}. The home offers ${beds} bedrooms, ${baths} bathrooms and ${sqft} square feet.
 
-This ${beds}-bedroom, ${baths}-bathroom home offers ${sqft} square feet of beautifully designed living space. Here's what makes it special:
+${featureBullets ? `Listed highlights:\n${featureBullets}` : ""}
 
-• ${details.keyFeatures[0] || "Open-concept living areas"}
-• ${details.keyFeatures[1] || "Gourmet kitchen with premium finishes"}
-• ${details.keyFeatures[2] || "Spacious primary suite with ensuite bath"}
-• Prime location with easy access to amenities
-
-FEATURED: The heart of this home is the stunning kitchen — perfect for entertaining guests or enjoying quiet family meals.
-
-I'm hosting an open house this weekend and would love to see you there. Can't make it? I'm happy to schedule a private tour at your convenience.
-
-Ready to take the next step? Hit reply or click the button below to book your showing.
+${details.description ? `From the listing: ${details.description}\n\n` : ""}If you'd like a closer look, reply to this email or call me and I'll arrange a viewing or send over the full details.
 
 Schedule a tour — reply to this email to book a time.
 
 ${emailSignature}
 
-P.S. Open house this Sunday from 2-4pm — reply for the address and private showing times.`,
+P.S. Reply with any questions about ${address} — happy to help.`,
 
-    "listing-summary": `${address} presents a remarkable opportunity for buyers seeking a ${beds}-bedroom, ${baths}-bathroom home offering ${sqft} square feet of living space at ${price}. This property stands out for its exceptional layout, premium finishes, and move-in-ready condition. The layout suits buyers who need modern comfort with practical functionality — flexible living space, ample storage, and low-maintenance upkeep. Key selling points include ${features}, along with the home's prime location near shopping, dining, and excellent schools. Priced competitively for the current market, this home offers strong value given its condition, features, and location — making it an attractive option for buyers who want quality without compromise.`,
+    "listing-summary": `${address} is a ${beds}-bedroom, ${baths}-bathroom home offering ${sqft} square feet of living space, listed at ${price}.${details.yearBuilt ? ` Year built: ${details.yearBuilt}.` : ""}${details.lotSize ? ` Lot size: ${details.lotSize}.` : ""}${features ? ` Key selling points include ${features}.` : ""}${details.description ? ` ${details.description}` : ""} Contact the listing agent to schedule a tour before you decide.`,
   };
 
   return mocks[contentType] || "Content generation unavailable for this type.";
@@ -266,6 +265,69 @@ function capHashtags(content: string, max = 5): string {
 }
 
 /**
+ * Deterministic truthfulness enforcement (spec:
+ * generated-content-truthfulness §1–§3). Runs on EVERY candidate — model,
+ * mock, and strict-retry output alike — in a fixed order:
+ *   1. hashtag cap (social, owner directive Aug 13);
+ *   2. markdown strip (social — raw `**INSTAGRAM:**`/`---` used to ship
+ *      literally into Instagram);
+ *   3. urgency sentence removal (all types — banned outright);
+ *   4. email opt-out footer (email — CAN-SPAM, appended when missing);
+ *   5. bracketed-placeholder strip (task fa4a26ae).
+ * Returns the cleaned text plus the urgency hits that were removed, so the
+ * caller can tell the agent their draft was rewritten instead of silently
+ * shipping altered copy (§4).
+ */
+function applyDeterministicGuards(
+  contentType: ContentType,
+  raw: string,
+  details?: PropertyDetails,
+): { text: string; removedUrgencyHits: FairHousingHit[] } {
+  let text = contentType === "social-media-post" ? capHashtags(raw) : raw;
+  const preUrgency = text;
+  if (contentType === "social-media-post") {
+    text = stripMarkdown(text);
+  }
+  text = stripUrgencySentences(text);
+  if (contentType === "email-campaign") {
+    text = ensureEmailOptOut(text, details?.agentAddress);
+  }
+  text = stripBracketPlaceholders(text);
+  return { text, removedUrgencyHits: urgencyHits(preUrgency) };
+}
+
+/** Merge two hit lists, dropping duplicate matched phrases, preserving order. */
+function mergeHits(...lists: Array<FairHousingHit[] | undefined>): FairHousingHit[] {
+  const seen = new Set<string>();
+  const merged: FairHousingHit[] = [];
+  for (const list of lists) {
+    for (const hit of list ?? []) {
+      if (seen.has(hit.matched)) continue;
+      seen.add(hit.matched);
+      merged.push(hit);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Fair-housing risk phrasing in the agent's own input (description,
+ * keyFeatures). When the draft omits it, the agent must be TOLD their wording
+ * was neutralised rather than silently publishing altered copy (spec §4) —
+ * the same notice the draft-repair flow already returns.
+ */
+function inputFairHousingHits(details: PropertyDetails): FairHousingHit[] {
+  const inputText = [
+    details.description ?? "",
+    ...(Array.isArray(details.keyFeatures) ? details.keyFeatures : []),
+  ]
+    .filter((s) => typeof s === "string" && s.trim().length > 0)
+    .join("\n");
+  if (!inputText) return [];
+  return scanFairHousing(inputText).hits;
+}
+
+/**
  * Generate marketing content for a property listing.
  * Uses OpenAI if OPENAI_API_KEY is set, otherwise returns mock data.
  * Saves generated content to the team database.
@@ -278,6 +340,11 @@ export async function generateContent(
   source: "openai" | "mock";
   fairHousing?: FairHousingOutcome;
 }> {
+  // Spec §4: scan the agent's INPUT before generation. If the draft comes
+  // back clean but the input carried risk phrasing, the model neutralised it
+  // and the agent gets the notice with their own phrases listed.
+  const inputHits = inputFairHousingHits(details);
+
   let content: string;
   let source: "openai" | "mock";
 
@@ -295,18 +362,10 @@ export async function generateContent(
     source = "mock";
   }
 
-  // Owner directive (Aug 13): cap hashtags in generated social posts at 5 total.
-  // Enforced here (not just prompted) so the cap holds for model AND mock output.
-  if (contentType === "social-media-post") {
-    content = capHashtags(content);
-  }
-  // Bracketed-placeholder guard (task fa4a26ae): the same deterministic
-  // enforcement pattern as the hashtag cap. Prompted rules alone did not stop
-  // "[Your Phone Number]"/"[Your Email Address]" from reaching a rendered
-  // flyer, so every generated output (model AND mock) is scrubbed here —
-  // placeholder text never reaches the client textarea, and an unsupplied
-  // detail simply renders nothing (never invented, see placeholder-guard.ts).
-  content = stripBracketPlaceholders(content);
+  // Deterministic guards: hashtag cap, markdown strip, urgency removal,
+  // email opt-out, bracket strip — see applyDeterministicGuards.
+  const guarded = applyDeterministicGuards(contentType, content, details);
+  content = guarded.text;
 
   // Save to database (fire-and-forget — don't block the response)
   // Use a placeholder property ID from details or generate one
@@ -315,12 +374,40 @@ export async function generateContent(
     : randomUUID();
   saveToDatabase(propertyId, contentType, content);
 
-  // Fair Housing post-generation check: scan the generated copy for risk
+  // Fair Housing post-generation check: scan the SHIPPED copy for risk
   // patterns. On a hit, retry ONCE with the strict instruction naming the
   // phrases. A still-flagged result is returned WITH the flag — never
   // silently shipped (task 01bc80ec).
   const firstScan = scanFairHousing(content);
   if (firstScan.clean) {
+    if (guarded.removedUrgencyHits.length > 0) {
+      // The deterministic urgency stripper changed the draft — tell the agent
+      // (spec §4: never silently publish altered copy).
+      console.warn(
+        "[truthfulness] urgency sentences removed from generated %s: %s",
+        contentType,
+        guarded.removedUrgencyHits.map((h) => h.matched).join(" | "),
+      );
+      return {
+        content,
+        source,
+        fairHousing: {
+          flagged: false,
+          repaired: true,
+          origin: "draft",
+          hits: mergeHits(guarded.removedUrgencyHits, inputHits),
+        },
+      };
+    }
+    if (inputHits.length > 0) {
+      // Clean draft, but the agent's own input carried the risk phrasing the
+      // model omitted — surface it (spec §4).
+      return {
+        content,
+        source,
+        fairHousing: { flagged: false, repaired: true, origin: "input", hits: inputHits },
+      };
+    }
     return { content, source };
   }
   console.warn(
@@ -331,17 +418,21 @@ export async function generateContent(
   if (process.env.OPENAI_API_KEY && source === "openai") {
     try {
       const retryContent = await generateWithOpenAI(contentType, details, firstScan);
-      // Bracketed-placeholder guard: the strict retry is a fresh generation and
-      // can emit placeholders exactly like the first pass — scrub it like every
-      // other candidate (the first pass is stripped earlier in this function).
-      const stripped = stripBracketPlaceholders(retryContent);
-      const capped = contentType === "social-media-post" ? capHashtags(stripped) : stripped;
-      const retryScan = scanFairHousing(capped);
+      // The strict retry is a fresh generation and gets the SAME deterministic
+      // guards as the first pass (hashtags, markdown, urgency, email opt-out,
+      // bracket strip) before it is scanned again.
+      const guardedRetry = applyDeterministicGuards(contentType, retryContent, details);
+      const retryScan = scanFairHousing(guardedRetry.text);
       if (retryScan.clean) {
         return {
-          content: capped,
+          content: guardedRetry.text,
           source,
-          fairHousing: { flagged: false, repaired: true, hits: firstScan.hits },
+          fairHousing: {
+            flagged: false,
+            repaired: true,
+            origin: "draft",
+            hits: mergeHits(firstScan.hits, guardedRetry.removedUrgencyHits, inputHits),
+          },
         };
       }
       console.warn("[fair-housing] strict retry still flagged — returning flagged content");
@@ -349,7 +440,11 @@ export async function generateContent(
       console.error("[fair-housing] strict retry failed, returning flagged content:", retryErr);
     }
   }
-  return { content, source, fairHousing: { flagged: true, hits: firstScan.hits } };
+  return {
+    content,
+    source,
+    fairHousing: { flagged: true, hits: mergeHits(firstScan.hits, inputHits) },
+  };
 }
 
 /**
@@ -1058,7 +1153,20 @@ export async function refineContent(
     // the model into emitting template placeholders just as easily — scrub here
     // so every candidate (first revision and strict retry) is clean before it
     // reaches the textarea (and from there the renderer).
-    stripBracketPlaceholders(contentType === "social-media-post" ? capHashtags(text) : text);
+    // Truthfulness guards (spec §1–§3) run here too: a refinement must not
+    // introduce urgency, ship markdown in a social post, or drop the email
+    // opt-out footer that generation appended. (Refine has no PropertyDetails,
+    // so a dropped footer is re-added with the labelled address slot.)
+    applyDeterministicGuards(contentType, text).text;
+  // Fair-housing phrasing in the user's own instruction ("make it appeal to
+  // young families") — when the revised copy omits it, say so (spec §4).
+  const instructionHits = scanFairHousing(instruction).hits;
+  const withInstructionHits = (
+    outcome: FairHousingOutcome,
+  ): FairHousingOutcome =>
+    instructionHits.length > 0
+      ? { ...outcome, hits: mergeHits(outcome.hits, instructionHits) }
+      : outcome;
   try {
     const first = await callOnce(
       `Content type: ${contentType}\n\nExisting content:\n---\n${currentContent}\n---\n\nUser instruction: ${instruction}\n\nRevise the content according to this instruction. Output ONLY the revised content.`,
@@ -1068,7 +1176,11 @@ export async function refineContent(
     // targeting language ("make it appeal to young families") — never ship it.
     const scan = scanFairHousing(revised);
     if (scan.clean) {
-      return { revised };
+      // The revision itself is clean. If the INSTRUCTION carried risk phrasing
+      // that the revision dropped, tell the agent (spec §4).
+      return instructionHits.length > 0
+        ? { revised, fairHousing: { flagged: false, repaired: true, origin: "input", hits: instructionHits } }
+        : { revised };
     }
     console.warn(
       "[fair-housing] risk patterns in refined %s: %s",
@@ -1086,13 +1198,24 @@ export async function refineContent(
       if (second) {
         const finalText = finalize(second);
         if (scanFairHousing(finalText).clean) {
-          return { revised: finalText, fairHousing: { flagged: false, repaired: true, hits: scan.hits } };
+          return {
+            revised: finalText,
+            fairHousing: withInstructionHits({
+              flagged: false,
+              repaired: true,
+              origin: "draft",
+              hits: scan.hits,
+            }),
+          };
         }
       }
     } catch (retryErr) {
       console.error("[fair-housing] refine strict retry failed:", retryErr);
     }
-    return { revised, fairHousing: { flagged: true, hits: scan.hits } };
+    return {
+      revised,
+      fairHousing: withInstructionHits({ flagged: true, hits: scan.hits }),
+    };
   } catch (err) {
     console.error("[refineContent] Error:", err);
     return { revised: currentContent };

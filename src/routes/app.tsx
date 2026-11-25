@@ -398,6 +398,7 @@ function AppDashboard() {
   const [fairHousingWarning, setFairHousingWarning] = useState<{
     flagged: boolean;
     repaired?: boolean;
+    origin?: "draft" | "input";
     hits?: Array<{ label: string; matched: string; note: string; outsideFederalSeven: boolean }>;
   } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -768,6 +769,7 @@ function AppDashboard() {
       const r = await readApiResponse(res);
       if (r.ok && r.data?.success && r.data?.content) {
         setGeneratedContent(r.data.content);
+        setFairHousingWarning(r.data.fairHousing ?? null);
         setRefineInstruction("");
         trackEvent("content_refined", { content_type: contentType });
       } else {
@@ -1867,7 +1869,9 @@ function AppDashboard() {
                     <p className={`text-sm font-semibold ${fairHousingWarning.flagged ? "text-amber-200" : "text-emerald-200"}`}>
                       {fairHousingWarning.flagged
                         ? "⚠ Fair Housing risk pattern detected — review before publishing"
-                        : "Fair Housing check: the first draft tripped the guardrail and was rewritten"}
+                        : fairHousingWarning.origin === "input"
+                          ? "Fair Housing check: your input contained risk phrasing that was not carried into the draft"
+                          : "Fair Housing check: the first draft tripped the guardrail and was rewritten"}
                     </p>
                     {(fairHousingWarning.hits ?? []).length > 0 && (
                       <ul className="mt-2 space-y-1.5">
