@@ -48,6 +48,16 @@ export interface FairHousingPattern {
 }
 
 /**
+ * Manufactured-urgency/scarcity phrase source. Single source of truth so the
+ * risk-pattern scan below and the deterministic sentence stripper in
+ * truthfulness.ts catch exactly the same phrases ("banned outright" per the
+ * generated-content-truthfulness spec — observed live: "just listed and won't
+ * stay on the market long" sailed past the original won't-last-only pattern).
+ */
+export const FAIR_HOUSING_URGENCY_SOURCE =
+  "\\b(?:act\\s+now|act\\s+fast|don'?t\\s+miss\\s+(?:out|your\\s+chance|this|it)|last\\s+chance|won'?t\\s+last(?:\\s+long)?|won'?t\\s+stay\\s+(?:on\\s+the\\s+market\\s+)?(?:for\\s+)?long|won'?t\\s+(?:stick\\s+around|wait)|it\\s+won'?t\\s+last|must\\s+sell|needs?\\s+to\\s+sell|sell(?:s|ing)?\\s+(?:fast|quickly|soon)|going\\s+fast|selling\\s+fast|moving\\s+fast|hurry(?:\\s+(?:in|over|down))?|only\\s+\\d+\\s+(?:left|remaining|available|spots?|slots?|days?)|before\\s+it'?s\\s+gone|once\\s+it'?s\\s+gone|hot\\s+new\\s+listing|priced\\s+to\\s+sell)\\b";
+
+/**
  * Risk-pattern list. Each entry is "risk pattern, not regulatory text".
  * Word boundaries and context anchors keep ordinary copy unflagged.
  */
@@ -182,8 +192,7 @@ export const FAIR_HOUSING_PATTERNS: FairHousingPattern[] = [
     id: "urgency-manufactured",
     category: "manufactured-urgency",
     label: "Manufactured urgency/scarcity",
-    pattern:
-      /\b(?:act\s+now|don'?t\s+miss\s+(?:out|your\s+chance|this)|last\s+chance|won'?t\s+last(?:\s+long)?|selling\s+fast|going\s+fast|only\s+\d+\s+(?:left|remaining|available|spots?|slots?))\b/i,
+    pattern: new RegExp(FAIR_HOUSING_URGENCY_SOURCE, "i"),
     note: "Owner rule: no false urgency/scarcity unless the user supplied a real deadline. State real dates (open house times) instead.",
     outsideFederalSeven: true,
   },
@@ -208,12 +217,19 @@ export interface FairHousingScanResult {
 /**
  * What the generation pipeline reports back to the API/UI:
  * flagged=true means hits survived (or could not be verified away) — the UI
- * MUST show the warning; flagged=false with repaired=true means the strict
- * retry produced clean copy (initial hits are kept for transparency).
+ * MUST show the warning; flagged=false with repaired=true means the shipped
+ * copy differs from the first draft for guardrail reasons and the UI MUST
+ * say so. `origin` names why:
+ *   - "draft": the model's own draft tripped the scan (strict retry or the
+ *     deterministic urgency stripper cleaned it);
+ *   - "input": the agent's own input carried the risk phrasing and the draft
+ *     omits it — the agent learns their wording was neutralised instead of
+ *     silently publishing altered copy (spec §4).
  */
 export interface FairHousingOutcome {
   flagged: boolean;
   repaired?: boolean;
+  origin?: "draft" | "input";
   hits?: FairHousingHit[];
 }
 

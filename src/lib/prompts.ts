@@ -109,6 +109,11 @@ export interface PropertyDetails {
    *  the copy must simply not reference them (task fa4a26ae). */
   agentPhone?: string;
   agentEmail?: string;
+  /** The agent's business postal address, when supplied. Used VERBATIM in the
+   *  CAN-SPAM footer of generated email campaigns; when absent the footer
+   *  renders a labelled slot the agent fills in — never an invented address
+   *  (spec: generated-content-truthfulness §1). */
+  agentAddress?: string;
   /** Brand/agent sheet extracted from logo + headshot (set server-side). */
   agentIdentity?: string;
 }
@@ -135,6 +140,24 @@ const toneInstructions: Record<Tone, string> = {
   casual:
     "Use friendly, conversational language. Emphasize lifestyle, community, and approachability. The tone should be relaxed and relatable.",
 };
+
+/**
+ * Truthful-copy system block (spec: generated-content-truthfulness §2).
+ * Appended LAST in buildPrompt so it overrides tone, persona and engagement
+ * instructions. The model may phrase and structure what the agent typed and
+ * write generic connective prose; it must not assert a fact about the property
+ * that was not supplied, and urgency/scarcity language is banned outright.
+ * Deterministic enforcement lives in truthfulness.ts — this is the
+ * source-prevention half, not the guarantee.
+ */
+export const TRUTHFULNESS_SYSTEM_BLOCK = `
+
+TRUTHFUL LISTING COPY — REQUIRED BEHAVIOR:
+You may phrase, structure and emphasize what the agent supplied in this task, and you may write generic connective prose. You must NOT assert any fact about the property that was not supplied in this task: rooms, features, finishes, amenities, condition, renovations, age, appliances, events (open houses, tours), neighborhood or area claims (shops, parks, schools, transit), or price positioning ("competitively priced", "priced below market", "priced to sell", "great value", "motivated seller"). If a sentence would need such an unsupplied fact, OMIT the sentence — never fill the gap with an invention.
+- Open house: mention one ONLY if a date/time was supplied in this task; print it exactly as supplied.
+- Contact details: use only the agent name/phone/email/URL supplied in this task; omit anything unsupplied.
+- Urgency and scarcity language is banned outright: never write "won't last", "won't stay on the market long", "act now", "act fast", "don't miss", "must sell", "selling fast", "going fast", "only N left", or any similar pressure line — not in the body, not in a P.S., not in a CTA. State real dates instead.
+This rule overrides every instruction elsewhere that asks for urgency, excitement, hooks or engagement.`;
 
 export const promptTemplates: Record<ContentType, PromptTemplate> = {
   "property-description": {
@@ -187,10 +210,10 @@ HASHTAG LIMIT: Use AT MOST 5 hashtags total across ALL of the posts below — do
 
 Create optimized posts for:
 1. INSTAGRAM: Caption (max 2200 chars) with a maximum of 5 hashtags, and a call to action. Include a suggestion for the image/video to pair with it.
-2. FACEBOOK: Longer, storytelling-style post (3-4 paragraphs) with emojis, a CTA, and a tip about the neighborhood. Do not add extra hashtags unless the 5-tag total allows it.
+2. FACEBOOK: Longer, storytelling-style post (3-4 paragraphs) with emojis and a CTA. If you mention the neighborhood or nearby amenities, use ONLY facts supplied in this task — if none were supplied, skip neighborhood talk entirely. Do not add extra hashtags unless the 5-tag total allows it.
 3. TWITTER/X: 3 short variants (each under 280 chars) with different angles. Use no more than 5 hashtags total across all three variants.
 
-Each post should be ready to copy-paste and include a clear call to action.`,
+Each post should be ready to copy-paste and include a clear call to action. Output PLAIN TEXT only — no markdown symbols (no **, no ##, no --- rules): platform names act as plain-text labels (e.g. "INSTAGRAM:"), never markdown headers.`,
   },
 
   "email-campaign": {
@@ -212,12 +235,12 @@ Structure:
    - Opening hook (1 sentence)
    - Property highlights (3-4 short bullets using only the "-" character)
    - Feature callout (spotlight on the best feature)
-   - Virtual tour/open house invitation
+   - Invitation: ONLY if an open-house date/time was supplied in this task, invite readers to that open house and print the supplied date/time exactly as given; otherwise invite readers to reply or call to arrange a viewing. Never mention an open house or virtual tour that was not supplied in this task.
    - Agent signature using the agent name/phone/email supplied in this task (omit any detail that was not supplied — never a placeholder)
-   - P.S. with urgency trigger (e.g. "just listed", "price reduced", "open house this Sunday")
-4. CTA: Button text on one line. On the next line, use the real listing/tour URL ONLY if one was supplied in this task; if no URL was supplied, write a one-line invitation to reply to the email or call the agent instead — never a bracketed placeholder and never an invented URL
+   - P.S. with one useful, factual detail from this task (e.g. a supplied open-house date, or a feature the agent listed). Never use the P.S. for pressure, urgency or scarcity.
+4. CTA: Button text on one line. On the next line, use the real listing/tour URL ONLY if one was supplied in this task; if no URL was supplied, write a one-line invitation to reply to the email — and to call, but ONLY if a phone number was supplied — never a bracketed placeholder and never an invented URL
 
-Make it sound urgent but not pushy. Output only the email content itself — no code fences, no JSON, no commentary.`,
+Write it warm, professional and factual — never urgent, never pushy. Do not add any compliance or unsubscribe footer yourself; that is added automatically. Output only the email content itself — no code fences, no JSON, no commentary.`,
   },
 
   "listing-summary": {
@@ -231,10 +254,10 @@ Key Features: ${details.keyFeatures.join(", ")}
 Description: ${details.description}
 
 Format as a single-paragraph summary (under 150 words) that covers:
-- What makes this property unique
+- What makes this property unique (from the supplied facts only)
 - What buyer needs this property fits based on its physical and financial characteristics only — never target or describe a demographic group
 - Key selling points organized by priority
-- Why it's priced where it is
+- The asking price, stated factually — never a price-positioning or valuation claim ("competitively priced", "priced below market", "priced to sell", "great value", "motivated sellers", or a justification based on renovations the agent did not list)
 
 This summary should be professional and data-focused, suitable for sharing with potential buyers before they tour.`,
   },
@@ -264,6 +287,10 @@ export function buildPrompt(
   // (Deterministic enforcement lives in ai.ts/placeholder-guard.ts — this is
   // the source-prevention half, not the guarantee.)
   systemPrompt += `\n\nNEVER output bracketed template placeholders such as [Your Phone Number], [Your Email Address], [Your Name], [Agent Name], [First Name] or any other text in square brackets. If a detail was provided in this task, use its actual value exactly. If a detail was NOT provided, write copy that simply does not reference that detail — never a placeholder and never an invented value.`;
+  // Truthful-copy block LAST so it overrides tone/persona/engagement asks
+  // (spec: generated-content-truthfulness §2 — no invented property facts,
+  // no urgency language, ever).
+  systemPrompt += TRUTHFULNESS_SYSTEM_BLOCK;
   // Weave the agent's REAL contact details into the prompt when the user
   // supplied them, so a contact section carries the true values instead of
   // placeholders (task fa4a26ae).
