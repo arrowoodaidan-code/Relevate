@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckoutUnavailableDialog, ComplianceScopeLine, FeatureCard, Navigation, RelevateLockup } from "~/components";
+import { CheckoutUnavailableDialog, ComplianceScopeLine, FeatureCard, LegalLinks, Navigation, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
 import { startCheckout, type CheckoutUnavailable } from "~/lib/product-checkout";
@@ -535,6 +535,7 @@ function Home() {
             </p>
           </div>
           <ComplianceScopeLine className="mt-6 text-center sm:text-left" />
+          <LegalLinks className="mt-3 sm:justify-start" />
         </div>
       </footer>
 

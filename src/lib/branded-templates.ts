@@ -910,7 +910,6 @@ function flyerHero(input: RenderTemplateInput) {
   // Variant B fills the card to the divider and re-fits the copy at a larger
   // size (30/1.5 inside a wider padding); variant A keeps the legacy fit.
   const bodyFit = balanced ? fitBody(cardMaxH - BODY_PAD * 2 - ohBlockH, 30, 32) : bodyFitA;
-  const bodyTextH = Math.max(1, bodyFit.lines.length) * bodyFit.size * 1.5;
   const BODY_H = balanced
     ? cardMaxH
     : Math.min(cardMaxH, Math.max(BODY_MIN_H, naturalBodyH));

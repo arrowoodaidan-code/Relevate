@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ComplianceScopeLine, Navigation, RelevateLockup, RelevateMark } from "~/components";
+import { ComplianceScopeLine, LegalLinks, Navigation, RelevateLockup, RelevateMark } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 
 export const Route = createFileRoute("/about")({
@@ -359,6 +359,7 @@ function AboutPage() {
             </p>
           </div>
           <ComplianceScopeLine className="mt-6 text-center sm:text-left" />
+          <LegalLinks className="mt-3 sm:justify-start" />
         </div>
       </footer>
     </div>

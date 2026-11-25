@@ -1,6 +1,7 @@
 export { RelevateLockup, RelevateMark } from "./Logo";
 export { CheckoutUnavailableDialog } from "./CheckoutUnavailableDialog";
 export { ComplianceScopeLine } from "./ComplianceScopeLine";
+export { LegalLinks } from "./LegalLinks";
 export { ContentCard } from "./ContentCard";
 export { ContentTypeSelector } from "./ContentTypeSelector";
 export { FeatureCard } from "./FeatureCard";

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { RelevateMark, ComplianceScopeLine } from "~/components";
+import { RelevateMark, ComplianceScopeLine, LegalLinks } from "~/components";
 import { trackEvent } from "~/lib/analytics";
 import { readApiResponse } from "~/lib/api-response";
 
@@ -146,6 +146,7 @@ function DemoPage() {
           )}
         </div>
         <ComplianceScopeLine className="mt-6 text-center" />
+        <LegalLinks className="mt-3" />
       </main>
     </div>
   );
