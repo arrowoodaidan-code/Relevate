@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { CheckoutUnavailableDialog, ComplianceScopeLine, Navigation, PricingCard, RelevateLockup } from "~/components";
+import { CheckoutUnavailableDialog, ComplianceScopeLine, LegalLinks, Navigation, PricingCard, RelevateLockup } from "~/components";
 import { canonical, seoMeta } from "~/lib/seo";
 import { trackEvent } from "~/lib/analytics";
 import {
@@ -357,6 +357,7 @@ function PricingPage() {
             </p>
           </div>
           <ComplianceScopeLine className="mt-6 text-center sm:text-left" />
+          <LegalLinks className="mt-3 sm:justify-start" />
         </div>
       </footer>
 

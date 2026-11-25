@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { RelevateMark, ComplianceScopeLine } from "~/components";
+import { RelevateMark, ComplianceScopeLine, LegalLinks } from "~/components";
 import { trackEvent } from "~/lib/analytics";
 
 export const Route = createFileRoute("/signup")({
@@ -182,6 +182,7 @@ function SignupPage() {
             <a href="/login" className="font-medium text-emerald-400 hover:text-emerald-300 transition">Log in</a>
           </p>
           <ComplianceScopeLine className="mt-6 text-center" />
+          <LegalLinks className="mt-3" />
         </div>
       </div>
     </div>

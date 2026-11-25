@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ComplianceScopeLine, Navigation, RelevateMark } from "~/components";
+import { ComplianceScopeLine, LegalLinks, Navigation, RelevateMark } from "~/components";
 import { getAllPosts } from "~/lib/blog";
 import { canonical, seoMeta } from "~/lib/seo";
 
@@ -129,6 +129,7 @@ function BlogIndexPage() {
           </p>
         </div>
         <ComplianceScopeLine className="mx-auto mt-4 max-w-4xl text-center" />
+        <LegalLinks className="mx-auto mt-3 max-w-4xl" />
       </footer>
     </div>
   );
